@@ -13,7 +13,7 @@ __
 - Kernel
     - '***Andromeda***'
     - Languages: *C*
-    - Design: *Hybrid/Modular Kernel*
+    - Design: *Monolithic/Modular Kernel*
 
 __
 

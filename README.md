@@ -7,7 +7,7 @@
 Cosmos is structured to be a Unix-like operating system with the following characteristics in mind:
 
 - Free and open-source
-- Monolithic, modular, multitasking kernel with runtime flexibility and stability
+- Monolithic/modular multitasking kernel
 - C kernel codebase (C99)
 - POSIX compliance and interoperability with other systems without compromising simplicity
 
