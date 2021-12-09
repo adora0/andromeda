@@ -1,6 +1,6 @@
 # Software Architecture
 
-## Components
+## Component roadmap
 
 __
 
@@ -17,8 +17,8 @@ __
 
 __
 
-- Application Program/Binary Interface (API/ABI [AxI])
-    - '***lxi***'
+- Application Program/Binary Interface
+    - '***lxbi***'
         (Lesbos Binary Interface)
     - Languages: *C*
 
@@ -33,7 +33,7 @@ __
             - '***lash***'
                 (Lash Command Shell)
 
-        - Graphical User Interface (GUI)
+        - Display server
             - '***Iris***'
 
 ## Visualization

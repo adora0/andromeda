@@ -26,18 +26,13 @@ The system is structured to comprise a basic kernel, bootloader and userspace co
 
 ### Prerequesites
 
-- [`coreutils`](https://www.gnu.org/software/coreutils)
-- [`binutils`](https://www.gnu.org/software/binutils)
-- `curl`
-- `awk`
-- `tar`
-- `gcc`
-
-See `DEPENDENCIES` for a complete, newline-separated list. Package names are taken from the default Arch Linux package repositories.
+See `DEPENDENCIES` for a newline-separated list of build dependencies. Package names are taken from the default Arch Linux package repositories and are primarily from the GNU utilities.
 
 ### Setup
 
 `$ ./sysbuild configure`
+
+Prepares build environment and builds the toolchain.
 
 ### Compilation
 
