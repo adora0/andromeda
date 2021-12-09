@@ -6,6 +6,7 @@ basedir=$(pwd)
 noticefile="${basedir}/NOTICE"
 versionfile="${basedir}/VERSION"
 envfile="${basedir}/.env"
+binariesfile="${basedir}/BINARIES"
 gitignore="${basedir}/.gitignore"
 
 # defaults
@@ -35,6 +36,7 @@ unset NORMALIZE
 unset NOTICE
 unset RECURSE
 unset IGNORE_SIG
+unset IGNORE_INSTALLED
 
 command_log() {
     # $1...: message
@@ -254,56 +256,72 @@ configure() (
     fi
     command_log_notice "* Configuring build for target '${TARGET}'"
 
-    # create build directory
+    # set build directory
     [[ -n ${BUILDDIR} ]] || BUILDDIR=${default_builddir}
-    mkdir -p "${BUILDDIR}"
 
-    # check prefix for toolchains
+    # set prefix
     [[ -n ${PREFIX-} ]] || PREFIX=${default_prefix}
-    mkdir -p "${PREFIX}"
     command_log "Using prefix '${PREFIX}'"
-
     # set local environment file
     cat <<-EOF >${envfile}
 PREFIX="${PREFIX}"
+BUILDDIR="${BUILDDIR}"
+TARGET=${TARGET}
 EOF
-
-    # fetch archives
-    local arc_binutils
-    local arc_gcc
-    [[ -n ${IGNORE_SIG} ]] || KEYRING=$(fetch_keyring "${remote_keyring}")
-    if [[ -n ${USE_LATEST-} ]]; then
-        arc_binutils=$(fetch_version \
-            "${remote_binutils}" \
-            "${archive_ext}")
-        arc_gcc=$(fetch_version_recurse \
-            "${remote_gcc}" \
-            "${archive_ext}")
-    else
-        arc_binutils=$(fetch_version \
-            "${remote_binutils}/binutils-${version_binutils}.${archive_ext}")
-        arc_gcc=$(fetch_version \
-            "${remote_gcc}/gcc-${version_gcc}/gcc-${version_gcc}.${archive_ext}")
+    # check prefix for installed toolchains
+    local installed
+    if [[ -z ${IGNORE_INSTALLED-} && -e ${binariesfile} ]]; then
+        local fail
+        while read name; do
+            if [[ ! -x "${PREFIX}/bin/${TARGET}-${name}" ]]; then
+                fail=1
+                break
+            fi
+        done < ${binariesfile}
+        [[ ${fail} = 1 ]] || installed=true
     fi
 
-    # build binutils
-    local src_binutils=$(extract_archive "${arc_binutils}")
-    command_log "Starting build for binutils..."
-    start_build "${src_binutils}"
-    make
-    make install || err "Failed to install binutils" 1
-    cd "${basedir}"
-    
-    # build gcc
-    local src_gcc=$(extract_archive "${arc_gcc}")
-    command_log "Starting build for gcc..."
-    start_build "${src_gcc}"
-    make all-gcc
-    make all-target-libgcc
-    make install-gcc
-    make install-target-libgcc || err "Failed to install gcc" 1
-    cd "${basedir}"
+    if [[ -n ${installed-} ]]; then
+        command_log "Found existing toolchain binaries"
+    else
+        mkdir -p "${BUILDDIR}"
+        mkdir -p "${PREFIX}"
+        # fetch archives
+        local arc_binutils
+        local arc_gcc
+        [[ -n ${IGNORE_SIG} ]] || KEYRING=$(fetch_keyring "${remote_keyring}")
+        if [[ -n ${USE_LATEST-} ]]; then
+            arc_binutils=$(fetch_version \
+                "${remote_binutils}" \
+                "${archive_ext}")
+            arc_gcc=$(fetch_version_recurse \
+                "${remote_gcc}" \
+                "${archive_ext}")
+        else
+            arc_binutils=$(fetch_version \
+                "${remote_binutils}/binutils-${version_binutils}.${archive_ext}")
+            arc_gcc=$(fetch_version \
+                "${remote_gcc}/gcc-${version_gcc}/gcc-${version_gcc}.${archive_ext}")
+        fi
 
+        # build binutils
+        local src_binutils=$(extract_archive "${arc_binutils}")
+        command_log "Starting build for binutils..."
+        start_build "${src_binutils}"
+        make
+        make install || err "Failed to install binutils" 1
+        cd "${basedir}"
+        
+        # build gcc
+        local src_gcc=$(extract_archive "${arc_gcc}")
+        command_log "Starting build for gcc..."
+        start_build "${src_gcc}"
+        make all-gcc
+        make all-target-libgcc
+        make install-gcc
+        make install-target-libgcc || err "Failed to install gcc" 1
+        cd "${basedir}"
+    fi
     command_log_notice "Configuration completed"
 )
 
@@ -346,6 +364,7 @@ options:
  --list-targets             show available architectures
  --use-latest               fetch latest toolchain versions
  --allow-unauthenticated    ignore gpg signatures
+ --ignore-installed         ignore existing binaries in prefix
 commands:
  configure                  prepare the build environment and dependencies
  clean                      remove all entries found in .gitignore
@@ -409,6 +428,8 @@ while getopts ${optstr} OPT; do
                     USE_LATEST=1 ;;
                 (allow-unauthenticated)
                     IGNORE_SIG=1 ;;
+                (ignore-installed)
+                    IGNORE_INSTALLED=1 ;;
                 (*)
                     arg_err ;;
             esac
