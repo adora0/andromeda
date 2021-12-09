@@ -30,7 +30,7 @@ See `DEPENDENCIES` for a newline-separated list of build dependencies. Package n
 
 ### Setup
 
-`$ ./sysbuild configure`
+`$ ./sysbuild.sh configure`
 
 Prepares build environment and builds the toolchain.
 

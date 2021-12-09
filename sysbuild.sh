@@ -22,6 +22,7 @@ archlist=(i586-elf x86_64-elf)
 default_builddir="${basedir}/build"
 default_prefix="${basedir}/local"
 default_target='x86_64-elf'
+default_execname='cosmos'
 logcolor=$'\e[2m'
 logcolor_notice=$'\e[1;32m'
 logcolor_error=$'\e[1;91m'
@@ -256,17 +257,18 @@ configure() (
     fi
     command_log_notice "* Configuring build for target '${TARGET}'"
 
-    # set build directory
-    [[ -n ${BUILDDIR} ]] || BUILDDIR=${default_builddir}
-
-    # set prefix
+    # set environment variables
     [[ -n ${PREFIX-} ]] || PREFIX=${default_prefix}
     command_log "Using prefix '${PREFIX}'"
+    [[ -n ${BUILDDIR} ]] || BUILDDIR=${default_builddir}
+    [[ -n ${EXECNAME} ]] || EXECNAME=${default_execname}
+    
     # set local environment file
     cat <<-EOF >${envfile}
-PREFIX="${PREFIX}"
-BUILDDIR="${BUILDDIR}"
+PREFIX=${PREFIX}
+BUILDDIR=${BUILDDIR}
 TARGET=${TARGET}
+EXECNAME=${EXECNAME}
 EOF
     # check prefix for installed toolchains
     local installed
@@ -352,7 +354,7 @@ usage() {
     local basename=$(basename $0)
     cat <<-EOF
 usage: $basename [options]... [commands]...
-Build Environment for the Cosmos Operating System
+Build script for the Cosmos Operating System
 options:
  -h, --help                 show this usage
  -V, --version              show version
@@ -360,6 +362,7 @@ options:
  --target=<name>            specify target architecture
  --output=<path>            specify build directory
  --prefix=<path>            specify toolchain prefix
+ --name=<name>              specify default executable name
  --normalize                disable log colorization
  --list-targets             show available architectures
  --use-latest               fetch latest toolchain versions
@@ -420,6 +423,8 @@ while getopts ${optstr} OPT; do
                     get_long BUILDDIR "$@" ;;
                 (prefix)
                     get_long PREFIX "$@" ;;
+                (name)
+                    get_long EXECNAME "$@" ;;
                 (silent)
                     SILENT=1 ;;
                 (normalize)
