@@ -40,7 +40,7 @@ To display its usage, use:
 
 ### Setup
 
-Prepare the build environment and build the toolchain.
+Prepare the build environment and build the toolchain:
 
 `$ ./sysbuild.sh configure`
 
@@ -50,7 +50,7 @@ Prepare the build environment and build the toolchain.
 
 ### Testing
 
-*Requires `qemu-system-x86_64` or `qemu-system-i386`.*
+*Requires `qemu-system-x86_64` or `qemu-system-i386`*
 
 `$ ./sysbuild.sh run`
 
