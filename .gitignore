@@ -1,5 +1,6 @@
 /build
 /local
 .env
+.gdb.socket
 *.tar.gz
 *.o

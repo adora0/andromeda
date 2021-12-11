@@ -9,7 +9,7 @@ typedef uint16_t vga_entry_t;
 typedef unsigned char vga_char_t;
 typedef vga_entry_t* vga_buffer_t;
 
-static struct vga_data
+struct vga_data
 {
 	size_t width;
 	size_t height;
@@ -18,7 +18,7 @@ static struct vga_data
     size_t index;
 	vga_color_t color;
 	vga_buffer_t buffer;
-} display;
+};
 
 enum VGA_COLOR {
     VGA_COLOR_BLACK = 0,
@@ -41,7 +41,7 @@ enum VGA_COLOR {
 
 #define VGA_WIDTH           80
 #define VGA_HEIGHT          25
-#define VGA_FG		        VGA_COLOR_WHITE
+#define VGA_FG		        VGA_COLOR_LIGHT_GREY
 #define VGA_BG		        VGA_COLOR_BLACK
 #define VGA_BUFFER_START    (vga_buffer_t) 0xb8000
 
@@ -50,8 +50,6 @@ enum VGA_COLOR {
 
 #define VGA_NULL			(vga_char_t) 0
 
-static inline vga_color_t vga_entry_color(enum VGA_COLOR fg, enum VGA_COLOR bg);
-static inline vga_entry_t vga_entry(vga_char_t c, vga_color_t color);
 void vga_init(void);
 void vga_clear(void);
 void vga_putc(char c);

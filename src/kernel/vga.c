@@ -14,6 +14,12 @@ static inline vga_entry_t vga_entry(vga_char_t c, vga_color_t color)
     return (vga_entry_t) c | (vga_entry_t) color << 8;
 }
 
+static inline void vga_set(size_t index, vga_char_t c, vga_color_t color)
+{
+	display.buffer[index] = vga_entry(c, color);
+	return;
+}
+
 void vga_init(void)
 {
 	/* initialize display struct */
@@ -23,39 +29,48 @@ void vga_init(void)
 	display.buffer = VGA_BUFFER_START;
 	/* clear buffer */
 	vga_clear();
+	return;
 }
 
 void vga_clear(void)
 {
-	size_t y,x,index;
-	vga_entry_t entry = vga_entry(VGA_NULL, display.color);
-	for (y=0; y<display.height; y++) {
-		for (x=0; x<display.width; x++) {
-			index = VGA_INDEX(y, x, VGA_WIDTH);
-			display.buffer[index] = entry;
+	size_t index;
+	for (size_t y=0; y<display.height; y++) {
+		for (size_t x=0; x<display.width; x++) {
+			index = VGA_INDEX(y, VGA_WIDTH, x);
+			vga_set(index, VGA_NULL, display.color);
 		}
 	}
+	return;
 }
 
 void vga_putc(char c)
 {
-	display.index = VGA_CURRENT_INDEX();
-	display.buffer[display.index] = c;
-	if (++display.column == display.width) {
-		display.column = 0;
-		if (++display.row == display.height) {
+	if (c == ENDL) {
+		if (++display.row == display.height)
 			display.row = 0;
+		display.column = 0;
+	} else {
+		vga_set(display.index, c, display.color);
+		if (++display.column == display.width) {
+			display.column = 0;
+			if (++display.row == display.height)
+				display.row = 0;
 		}
 	}
+	display.index = VGA_CURRENT_INDEX();
+	return;
 }
 
 void vga_write(const char *data, size_t size)
 {
 	for (size_t i=0; i<size; i++)
 		vga_putc(data[i]);
+	return;
 }
 
 void vga_puts(const char *str)
 {
 	vga_write(str, strlen(str));
+	return;
 }

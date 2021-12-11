@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#define ENDL '\n'
+
 size_t strlen(const char *str);
 
 #endif

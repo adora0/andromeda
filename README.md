@@ -15,12 +15,12 @@ The system is structured to comprise a basic kernel, bootloader and userspace co
 
 ## Hardware support
 
+- Base
+    - i386 32-bit CPU *(IA-32 compatible, Intel i386 or newer)*
+    - IBM PC-compatible BIOS firmware
 - Target
     - x86_64 64-bit CPU *(AMD64/Intel64 compatible, AMD Opteron / Intel Pentium 4 Prescott or newer)*
     - UEFI 2.0 compatible firmware
-- Base
-    - i386 32-bit CPU *(IA-32 compatible, Intel i386 or newer)*
-    - IBM PC-compatible BIOS firmware 
 
 ## Build
 

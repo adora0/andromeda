@@ -18,32 +18,48 @@ remote_gcc="${remote_server}/gnu/gcc"
 version_binutils="2.37"
 version_gcc="11.2.0"
 archive_ext="tar.gz"
-archlist=(i386-elf x86_64-elf)
+archlist=(i386-elf)
+target_32="i386-elf"
 target_x86_64="x86_64-elf"
 
 default_builddir="build"
 default_prefix="local"
-default_target="${target_x86_64}"
+default_target="${target_32}"
 default_execname="cosmos"
 logcolor=$'\e[2m'
 logcolor_notice=$'\e[1;32m'
 logcolor_error=$'\e[1;91m'
 logcolor_clear=$'\e[0m'
-output_boot_filename="boot.bin"
-output_kernel_filename="kernel.bin"
+boot_basename="boot.bin"
+kernel_basename="kernel.bin"
+cflags=
+asflags=
+cflags_debug=-g
+asflags_debug=-g
 
 qemu_exec_32="qemu-system-i386"
 qemu_exec_64="qemu-system-x86_64"
+gdb_exec="gdb"
+gdb_socket=".gdb.socket"
 
-# options
+# unset configured variables
+unset boot_bin
+unset kernel_bin
+unset qemu_args
+unset gdb_args
+unset NOTICE
+unset RECURSE
+
+# unset options
 unset BUILDDIR
 unset PREFIX
 unset TARGET
-unset QEMU_EXEC
+unset QEMU
+unset GDB
 unset SILENT
+unset BUILD_DEBUG
+unset RUN_DEBUG
 unset NORMALIZE
-unset NOTICE
-unset RECURSE
 unset IGNORE_SIG
 unset IGNORE_INSTALLED
 
@@ -210,11 +226,11 @@ fetch_version() (
         # get file
         remote="${remote}${latest}"
     fi
-    out="$BUILDDIR/$(basename "${remote}")"
+    out="${BUILDDIR}/$(basename "${remote}")"
     remote_sig="${remote}.sig"
     out_sig="${out}.sig"
     if [[ -e "${out}" ]]; then
-        if [[ -n "${IGNORE_SIG}" ]] || verify_fetch; then
+        if [[ -n "${IGNORE_SIG-}" ]] || [[ -n "$(verify_fetch)" ]]; then
             echo "${out}"
             return 0
         else
@@ -223,7 +239,8 @@ fetch_version() (
     fi
     command_log $"Fetching '${remote}'..."
     curl ${curl_args} -o "${out}" "${remote}" || log_err $"Unable to retrieve file." 1
-    if [[ -n "${IGNORE_SIG-}" ]] || verify_fetch; then
+    if [[ -n "${IGNORE_SIG-}" ]] || [[ -n "$(verify_fetch)" ]]; then
+        echo "${out}"
         return 0
     else
         rm "${out}" "${out_sig}"
@@ -234,19 +251,45 @@ fetch_version() (
 start_build() {
     # $1: directory
     # (optional) $2: autoconf arguments
-    local srcdir="$1"
+    local srcdir="$(realpath "$1")"
     local objdir="${srcdir}-build"
+    local prefix="$(realpath "${PREFIX}")"
     local args
 
     mkdir -p "${objdir}"
     cd "${objdir}"
+    local rel=""
     if [[ -n "${2-}" ]]; then
         args="$2"
-        ${srcdir}/configure --prefix="${PREFIX}" --target="${TARGET}" ${args}
+        "${srcdir}/configure" --prefix="${prefix}" --target="${TARGET}" ${args}
     else
-        ${srcdir}/configure --prefix="${PREFIX}" --target="${TARGET}"
+        "${srcdir}/configure" --prefix="${prefix}" --target="${TARGET}"
     fi
     [[ $? -eq 0 ]] || log_err $"Failed to configure source directory '${srcdir}'" 1
+}
+
+configure_env() {
+    ## set environment variables
+    if [[ -n "${TARGET-}" ]]; then
+        if ! is_declared "${TARGET}" archlist; then
+            log_err $"Invalid target architecture '${TARGET}'" 2
+        fi
+    else
+        TARGET="${default_target}"
+    fi
+
+    # echo arguments to expand paths
+    if [[ -n "${PREFIX-}" ]]
+    then PREFIX=$(eval echo ${PREFIX})
+    else PREFIX=${default_prefix}
+    fi
+    if [[ -n "${BUILDDIR-}" ]]
+    then BUILDDIR=$(eval echo ${BUILDDIR})
+    else BUILDDIR=${default_builddir}
+    fi
+    [[ -n "${EXECNAME}" ]] || EXECNAME=${default_execname}
+    boot_bin="${BUILDDIR}/${boot_basename}"
+    kernel_bin="${BUILDDIR}/${kernel_basename}"
 }
 
 configure() (
@@ -262,20 +305,10 @@ configure() (
         echo "${out}"
     }
 
-    if [[ -n "${TARGET-}" ]]; then
-        if ! is_declared "${TARGET}" archlist; then
-            log_err $"Invalid target architecture '${TARGET}'" 2
-        fi
-    else
-        TARGET="${default_target}"
-    fi
-    command_log_notice $"* Configuring build for target '${TARGET}'"
-
     # set environment variables
-    [[ -n "${PREFIX-}" ]] || PREFIX="${default_prefix}"
+    configure_env
+    command_log_notice $"* Configuring build for target '${TARGET}'"
     command_log $"Using prefix '${PREFIX}'"
-    [[ -n "${BUILDDIR}" ]] || BUILDDIR="${default_builddir}"
-    [[ -n "${EXECNAME}" ]] || EXECNAME="${default_execname}"
     
     # set local environment file
     cat <<-EOF >"${envfile}"
@@ -283,9 +316,22 @@ prefix=${PREFIX}
 builddir=${BUILDDIR}
 target=${TARGET}
 execname=${EXECNAME}
-boot_bin=${BUILDDIR}/${output_boot_filename}
-kernel_bin=${BUILDDIR}/${output_kernel_filename}
+boot_bin=${boot_bin}
+kernel_bin=${kernel_bin}
 EOF
+
+    if [[ -n "${BUILD_DEBUG-}" ]]; then
+        cat <<-EOF >>"${envfile}"
+CFLAGS=${cflags_debug}
+ASFLAGS=${asflags_debug}
+EOF
+    else
+        cat <<-EOF >>"${envfile}"
+CFLAGS=${cflags}
+ASFLAGS=${asflags}
+EOF
+    fi
+
     # check prefix for installed toolchains
     local installed
     if [[ -z "${IGNORE_INSTALLED-}" && -e "${binariesfile}" ]]; then
@@ -353,7 +399,7 @@ clean() {
             cut -c 2-)
         local all_objects=$(grep "^[^/]" <<< "${ignore_objects}")
 
-        [[ -z "${base_objects}" ]] || rm -rf "${base_objects}"
+        [[ -z "${base_objects}" ]] || rm -rf ${base_objects}
         for search in ${all_objects}; do
             # remove wholenames if contained in subdirectory
             if [[ "${search}" = *'/'* ]]; then
@@ -369,66 +415,90 @@ clean() {
 
 run() {
     ## run the system in QEMU
-    [[ -n "${BUILDDIR}" ]] || BUILDDIR="${default_builddir}"
+    configure_env
 
-    if [[ -n "${TARGET-}" ]]; then
-        if ! is_declared "${TARGET}" archlist; then
-            log_err $"Invalid target architecture '${TARGET}'" 2
-        fi
-    else
-        TARGET="${default_target}"
-    fi
-
-    if [[ -z "${QEMU_EXEC-}" ]]; then
+    if [[ -z "${QEMU-}" ]]; then
         if [[ "${TARGET}" = "${target_x86_64}" ]]; then
-            QEMU_EXEC=${qemu_exec_64}
+            QEMU=${qemu_exec_64}
         else
-            QEMU_EXEC=${qemu_exec_32}
+            QEMU=${qemu_exec_32}
         fi
     fi
     
-    if ! which "${QEMU_EXEC-}" >/dev/null 2>&1; then
+    if ! which "${QEMU-}" >/dev/null 2>&1; then
         log_err $"Unable to locate QEMU executable."
     fi
 
-    local args
     if [[ -n "${QEMU_USE_KERNEL-}" ]]; then
-        local kernel="${BUILDDIR}/${output_kernel_filename}"
-        args="-kernel "${kernel}" ${args}"
+        qemu_args="-kernel "${kernel_bin}" ${qemu_args}"
     else
-        local image="${BUILDDIR}/${output_boot_filename}"
-        args="-drive file="${image}",index=0,if=floppy,format=raw ${args}"
+        qemu_args="-drive file="${boot_bin}",index=0,if=floppy,format=raw ${qemu_args}"
     fi
 
-    ${QEMU_EXEC} \
-        -machine type=pc-i440fx-3.1 \
-        ${args}
+    qemu_args="-machine type=pc-i440fx-3.1 ${qemu_args}"
+
+    if [[ -n "${RUN_DEBUG}" ]]; then
+        if [[ -z "${GDB-}" ]]; then
+            GDB=${gdb_exec}
+        fi
+
+        if ! which "${GDB-}" >/dev/null 2>&1; then
+            log_err $"Unable to locate gdb executable."
+        fi
+
+        gdb_args="-ex 'target remote "${gdb_socket}"' ${gdb_args}"
+        if [[ -e "${kernel_bin}" ]]; then
+            gdb_args="-ex 'file "${kernel_bin}"' ${gdb_args}"
+        fi
+        
+        qemu_args="-chardev socket,path="${gdb_socket}",server=on,wait=off,id=gdb0 \
+    -gdb chardev:gdb0 \
+    -S \
+    ${qemu_args}"
+
+        ${QEMU} ${qemu_args} &
+        eval ${GDB} ${gdb_args}
+        while [[ -n "$(jobs -p)" ]]; do
+            kill %%
+            wait
+        done
+        [[ ! -f "${gdb_socket}" ]] || rm "${gdb_socket}"
+    else
+        ${QEMU} ${qemu_args}
+    fi
 }
 
 usage() {
     local basename=$(basename "$0")
-    echo $"usage: $basename [options]... [commands]...
+    echo $"usage: ${basename} [options]... [commands]...
 Build script for the Cosmos Operating System
 options:
  -h, --help                 show this usage
  -V, --version              show version
  -s, --silent               silence log output
+ --normalize                disable log colorization
+ --list-targets             show available target architectures
+
  --target=<name>            specify target architecture
  --output=<path>            specify build directory
  --prefix=<path>            specify toolchain prefix
  --name=<name>              specify default executable name
- --qemu=<exec>              specify qemu executable
- --normalize                disable log colorization
- --list-targets             show available architectures
+ --build-debug              use debug build flags
+
  --use-latest               fetch latest toolchain versions
  --allow-unauthenticated    ignore gpg signatures
  --ignore-installed         ignore existing binaries in prefix
+
+ --qemu=<exec>              specify QEMU executable
+ --gdb=<exec>               specify GDB executable
  --use-kernel               (qemu) boot from kernel
  --use-fda                  (qemu) boot from floppy (default)
+
 commands:
  configure                  prepare the build environment and dependencies
  clean                      remove all entries found in .gitignore
- run                        run the built system in QEMU"
+ run                        run the built system in QEMU
+ debug                      debug the built system in QEMU using GDB"
 }
 
 version() {
@@ -479,7 +549,11 @@ while getopts "${optstr}" OPT; do
                 ($"name")
                     get_long EXECNAME "$@" ;;
                 ("qemu")
-                    get_long QEMU_EXEC "$@" ;;
+                    get_long QEMU "$@" ;;
+                ("gdb")
+                    get_long GDB "$@" ;;
+                ($"build-debug")
+                    BUILD_DEBUG=1 ;;
                 ($"silent")
                     SILENT=1 ;;
                 ($"normalize")
@@ -529,6 +603,9 @@ do
             exit ;;
         ($"run")
             run
+            exit ;;
+        ($"debug")
+            RUN_DEBUG=1 run
             exit ;;
         (*) # not recognised
             command_err ;;

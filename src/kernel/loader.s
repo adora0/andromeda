@@ -1,17 +1,17 @@
 /* multiboot v1 header constants */
-.set ALIGN,     1<<0                # align loaded modules on page boundaries
-.set MEMINFO,   1<<1                # memory map
-.set FLAGS,     ALIGN | MEMINFO     # 'flag' field
-.set MAGIC,     0x1BADB002          # kernel identifier for the bootloader
-.set CHECKSUM,  -(MAGIC + FLAGS)    # checksum
+.set MB_ALIGN,      1<<0                # align loaded modules on page boundaries
+.set MB_MEMINFO,    1<<1                # memory map
+.set MB_FLAGS,      MB_ALIGN | MB_MEMINFO     # 'flag' field
+.set MB_MAGIC,      0x1BADB002          # kernel identifier for the bootloader
+.set MB_CHECKSUM,   -(MB_MAGIC + MB_FLAGS)    # checksum
 
 /*  multiboot v1 header
     marks the program as a kernel in the first 8KiB */
 .section .multiboot
 .align 4
-.long MAGIC
-.long FLAGS
-.long CHECKSUM
+.long MB_MAGIC
+.long MB_FLAGS
+.long MB_CHECKSUM
 
 /*  allocate 16KiB stack
     16-byte aligned according to the System V ABI */

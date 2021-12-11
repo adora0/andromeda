@@ -40,11 +40,11 @@ MSG_LD 			= 	** (LD) $^
 MSG_CC_LINK 	= 	** (CC) [link] $^
 
 # executables configured in environment file
-PATH 		:=	$(PATH):$(prefix)/bin
-AS		= 	echo "$(MSG_AS)"; $(target)-as
-CC		= 	echo "$(MSG_CC)"; $(target)-gcc
-LD 		= 	echo "$(MSG_LD)"; $(target)-ld
-CC_LINK	= 	echo "$(MSG_CC_LINK)"; $(target)-gcc
+PATH 	:=	$(PATH):$(prefix)/bin
+AS		= 	@echo "$(MSG_AS)"; $(target)-as
+CC		= 	@echo "$(MSG_CC)"; $(target)-gcc
+LD 		= 	@echo "$(MSG_LD)"; $(target)-ld
+CC_LINK	= 	@echo "$(MSG_CC_LINK)"; $(target)-gcc
 
 .SILENT:
 all : init $(boot_bin) $(kernel_bin)
