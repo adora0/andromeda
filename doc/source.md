@@ -3,7 +3,7 @@
 ## Languages
 
 - C99 *(ISO/IEC 9899:1999)*
-- NASM x86 Assembly *(Netwide Assembler)*
+- GNU x86 Assembly *(GNU AS, AT&T Syntax)*
 
 ## System Source Structure
 

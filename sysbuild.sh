@@ -3,10 +3,11 @@
 
 # globals
 basedir=$(pwd)
+toolsdir="tools"
 noticefile="NOTICE"
 versionfile="VERSION"
 envfile=".env"
-binariesfile="BINARIES"
+binariesfile="${toolsdir}/BINARIES"
 gitignore=".gitignore"
 
 # defaults
@@ -48,18 +49,18 @@ err() {
 arg_err() {
     # $OPTARG: argument value
     if [[ "${OPTARG}" = '?' ]]; then
-        err "Incomplete argument." 2
+        err $"Incomplete argument." 2
     else
-        err "Invalid argument '${OPTARG}'" 2
+        err $"Invalid argument '${OPTARG}'" 2
     fi
 }
 
 command_err() {
     # $OPT: command value
     if [[ "${OPT}" = '?' ]]; then
-        err "Incomplete command." 2
+        err $"Incomplete command." 2
     else
-        err "Invalid command '${OPT}'" 2
+        err $"Invalid command '${OPT}'" 2
     fi
 }
 
@@ -122,9 +123,9 @@ fetch_keyring() {
     else
         curl_args='--progress-bar'
     fi
-    command_log "Fetching '${remote}'..."
+    command_log $"Fetching '${remote}'..."
     curl ${curl_args} -o "${out}" "${remote}"
-    [[ $? -eq 0 ]] || log_err "Unable to retrive keyring." 1
+    [[ $? -eq 0 ]] || log_err $"Unable to retrive keyring." 1
     echo "${out}"
 }
 
@@ -155,14 +156,14 @@ fetch_version() (
         curl_args='--progress-bar'
     fi
     verify_fetch() {
-        command_log "Fetching '${remote_sig}'..."
+        command_log $"Fetching '${remote_sig}'..."
         curl ${curl_args} -o "${out_sig}" "${remote_sig}"
         if verify_version "${out}" "${out_sig}" "${KEYRING}"; then
-            command_log "Verification successful for file '${out}'."
+            command_log $"Verification successful for file '${out}'."
             echo "${out}"
             return 0
         else
-            command_log "Verification failed for file '${out}'."
+            command_log $"Verification failed for file '${out}'."
             return 1
         fi
     }
@@ -171,33 +172,33 @@ fetch_version() (
         ext="$2"
         if [[ -n "${RECURSE-}" ]]; then
             # fetch root directory contents
-            command_log "Fetching contents of '${remote}'..."
+            command_log $"Fetching contents of '${remote}'..."
             contents=$(curl ${curl_args} "${remote}")
-            [[ $? -eq 0 ]] || log_err "Unable to retrive remote directory contents." 1
+            [[ $? -eq 0 ]] || log_err $"Unable to retrive remote directory contents." 1
 
             # scan for latest version in directory entries only
             ## awk 9th field (name) of lines starting with 'd' (directory)
             latest=$(awk '/^d.*/ {print $9}' <<< "${contents}" |
                 sort -V |
                 tail -n 1)
-            [[ -n "${latest}" ]] || log_err "Unable to determine subdirectory of latest version." 1
+            [[ -n "${latest}" ]] || log_err $"Unable to determine subdirectory of latest version." 1
 
             # fetch directory contents
             remote="${remote}${latest}/"
-            command_log "Fetching contents of '${remote}'..."
+            command_log $"Fetching contents of '${remote}'..."
             contents=$(curl ${curl_args} --list-only "${remote}")
-            [[ $? -eq 0 ]] || log_err "Unable to retrive remote directory contents." 1
+            [[ $? -eq 0 ]] || log_err $"Unable to retrive remote directory contents." 1
         else
             # fetch directory contents
-            command_log "Fetching contents of '${remote}'..."
+            command_log $"Fetching contents of '${remote}'..."
             contents=$(curl ${curl_args} --list-only "${remote}")
-            [[ $? -eq 0 ]] || log_err "Unable to retrive remote directory contents." 1
+            [[ $? -eq 0 ]] || log_err $"Unable to retrive remote directory contents." 1
         fi
         # scan for latest entry
         latest=$(grep ".*${ext}$" <<< "${contents}" |
             sort -V |
             tail -n 1)
-        [[ -n "${latest}" ]] || log_err "Unable to determine latest version." 1
+        [[ -n "${latest}" ]] || log_err $"Unable to determine latest version." 1
 
         # get file
         remote="${remote}${latest}"
@@ -213,8 +214,8 @@ fetch_version() (
             rm "${out}"
         fi
     fi
-    command_log "Fetching '${remote}'..."
-    curl ${curl_args} -o "${out}" "${remote}" || log_err "Unable to retrieve file." 1
+    command_log $"Fetching '${remote}'..."
+    curl ${curl_args} -o "${out}" "${remote}" || log_err $"Unable to retrieve file." 1
     if [[ -n "${IGNORE_SIG-}" ]] || verify_fetch; then
         return 0
     else
@@ -238,7 +239,7 @@ start_build() {
     else
         ${srcdir}/configure --prefix="${PREFIX}" --target="${TARGET}"
     fi
-    [[ $? -eq 0 ]] || log_err "Failed to configure source directory '${srcdir}'" 1
+    [[ $? -eq 0 ]] || log_err $"Failed to configure source directory '${srcdir}'" 1
 }
 
 configure() (
@@ -247,34 +248,34 @@ configure() (
         # $1: path to archive
         local in="$1"
         local out="${BUILDDIR}/$(basename "${in}" ".${archive_ext}")"
-        command_log "Extracting '${in}'..."
+        command_log $"Extracting '${in}'..."
         mkdir -p "${out}" >&2
         tar -xzf "${in}" -C "${BUILDDIR}" >&2
-        [[ $? -eq 0 ]] || log_err "Failed to extract archive '${in}'" 1
+        [[ $? -eq 0 ]] || log_err $"Failed to extract archive '${in}'" 1
         echo "${out}"
     }
 
     if [[ -n "${TARGET-}" ]]; then
         if ! is_declared "${TARGET}" archlist; then
-            log_err "Invalid target architecture '${TARGET}'" 2
+            log_err $"Invalid target architecture '${TARGET}'" 2
         fi
     else
         TARGET="${default_target}"
     fi
-    command_log_notice "* Configuring build for target '${TARGET}'"
+    command_log_notice $"* Configuring build for target '${TARGET}'"
 
     # set environment variables
     [[ -n "${PREFIX-}" ]] || PREFIX="${default_prefix}"
-    command_log "Using prefix '${PREFIX}'"
+    command_log $"Using prefix '${PREFIX}'"
     [[ -n "${BUILDDIR}" ]] || BUILDDIR="${default_builddir}"
     [[ -n "${EXECNAME}" ]] || EXECNAME="${default_execname}"
     
     # set local environment file
     cat <<-EOF >"${envfile}"
-PREFIX=${PREFIX}
-BUILDDIR=${BUILDDIR}
-TARGET=${TARGET}
-EXECNAME=${EXECNAME}
+prefix=${PREFIX}
+builddir=${BUILDDIR}
+target=${TARGET}
+execname=${EXECNAME}
 EOF
     # check prefix for installed toolchains
     local installed
@@ -290,7 +291,7 @@ EOF
     fi
 
     if [[ -n "${installed-}" ]]; then
-        command_log "Found existing toolchain binaries"
+        command_log $"Found existing toolchain binaries"
     else
         mkdir -p "${BUILDDIR}"
         mkdir -p "${PREFIX}"
@@ -315,23 +316,23 @@ EOF
 
         # build binutils
         local src_binutils=$(extract_archive "${arc_binutils}")
-        command_log "Starting build for binutils..."
+        command_log $"Starting build for binutils..."
         start_build "${src_binutils}"
         make
-        make install || log_err "Failed to install binutils" 1
+        make install || log_err $"Failed to install binutils" 1
         cd "${basedir}"
         
         # build gcc
         local src_gcc=$(extract_archive "${arc_gcc}")
-        command_log "Starting build for gcc..."
+        command_log $"Starting build for gcc..."
         start_build "${src_gcc}"
         make all-gcc
         make all-target-libgcc
         make install-gcc
-        make install-target-libgcc || log_err "Failed to install gcc" 1
+        make install-target-libgcc || log_err $"Failed to install gcc" 1
         cd "${basedir}"
     fi
-    command_log_notice "Configuration completed"
+    command_log_notice $"Configuration completed"
 )
 
 clean() {
@@ -359,8 +360,7 @@ clean() {
 
 usage() {
     local basename=$(basename "$0")
-    cat <<-EOF
-usage: $basename [options]... [commands]...
+    echo $"usage: $basename [options]... [commands]...
 Build script for the Cosmos Operating System
 options:
  -h, --help                 show this usage
@@ -377,24 +377,19 @@ options:
  --ignore-installed         ignore existing binaries in prefix
 commands:
  configure                  prepare the build environment and dependencies
- clean                      remove all entries found in .gitignore
-EOF
+ clean                      remove all entries found in .gitignore"
 }
 
 version() {
     [[ ! -f "${versionfile}" ]] || local version=$(<"${versionfile}")
-    cat <<-EOF
-cosmos sysbuild $version (Build Environment for the Cosmos Operating System)
-EOF
+    echo $"cosmos sysbuild ${version} (Build Environment for the Cosmos Operating System)"
     [[ ! -f "${noticefile}" ]] || cat "${noticefile}"
 }
 
 show_arch() {
     local archlist_display="${archlist[@]}"
-    cat <<-EOF
-available architectures:
-    ${archlist_display// /, }
-EOF
+    echo $"available architectures:
+${archlist_display// /, }"
 }
 
 # prepare variables for getopts
@@ -415,32 +410,32 @@ while getopts "${optstr}" OPT; do
             # set argument from after first '=' separator
             OPTARG="${BASEARG%%=*}"
             case "${OPTARG}" in
-                (help)   
+                ($"help")   
                     usage
                     exit ;;
-                (version)
+                ($"version")
                     version
                     exit ;;
-                (list-targets)
+                ($"list-targets")
                     show_arch
                     exit ;;
-                (target)
+                ($"target")
                     get_long TARGET "$@" ;;
-                (output)
+                ($"output")
                     get_long BUILDDIR "$@" ;;
-                (prefix)
+                ($"prefix")
                     get_long PREFIX "$@" ;;
-                (name)
+                ($"name")
                     get_long EXECNAME "$@" ;;
-                (silent)
+                ($"silent")
                     SILENT=1 ;;
-                (normalize)
+                ($"normalize")
                     NORMALIZE=1 ;;
-                (use-latest)
+                ($"use-latest")
                     USE_LATEST=1 ;;
-                (allow-unauthenticated)
+                ($"allow-unauthenticated")
                     IGNORE_SIG=1 ;;
-                (ignore-installed)
+                ($"ignore-installed")
                     IGNORE_INSTALLED=1 ;;
                 (*)
                     arg_err ;;
@@ -469,10 +464,10 @@ fi
 for COM in ${args}
 do
     case "${COM}" in
-        (configure)
+        ($"configure")
             configure
             exit ;;
-        (clean)
+        ($"clean")
             clean
             exit ;;
         (*) # not recognised

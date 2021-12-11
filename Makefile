@@ -1,77 +1,82 @@
-basedir := $(shell pwd)
-envfile := .env
-include $(envfile)
+include .env
+ifdef builddir
 
-PATH := $(PATH):$(PREFIX)/bin
-CC := $(TARGET)-gcc
-AS := $(TARGET)-as
-LD := $(TARGET)-ld
+srcdir	:= ./src
+libdir	:= ./lib
+incdir	:= ./include
 
-srcdir := ./src
-incdir := ./include
+# source files
+boot_srcdir 	:= 	$(srcdir)/boot
+boot_ld 		:= 	$(boot_srcdir)/link.ld
+kernel_srcdir	:= 	$(srcdir)/kernel
+kernel_ld 		:= 	$(kernel_srcdir)/link.ld
 
-# bootloader
-boot_sources := $(wildcard $(srcdir)/boot/*.s)
-boot_o := $(BUILDDIR)/boot.o
-boot_objects := $(boot_o)
-boot_ld := $(srcdir)/boot/link.ld
-boot_bin := $(BUILDDIR)/boot.bin
+boot_src_as		:=	$(wildcard $(boot_srcdir)/*.s)
+kernel_src_cc	:=	$(wildcard $(kernel_srcdir)/*.c)
+kernel_src_as	:=	$(wildcard $(kernel_srcdir)/*.s)
+lib_src_cc		:=	$(wildcard $(libdir)/*.c)
 
-# kernel
-loader_sources := $(wildcard $(srcdir)/loader/*.s)
-loader_o := $(BUILDDIR)/loader.o
+# output
+boot_objdir		:= 	$(builddir)/boot
+kernel_objdir	:= 	$(builddir)/kernel
+lib_objdir		:= 	$(builddir)/lib
+builddirs		:= 	$(builddir) $(boot_objdir) $(kernel_objdir) $(lib_objdir)
 
-module_dirs := $(wildcard $(srcdir)/kernel/*/)
-kernel_sources := $(wildcard $(srcdir)/kernel/*.c)
-kernel_o := $(BUILDDIR)/kernel.o
-kernel_ld := $(srcdir)/kernel/link.ld
-kernel_bin := $(BUILDDIR)/kernel.bin
+boot_obj		:=	$(boot_src_as:$(boot_srcdir)/%.s=$(boot_objdir)/%.o)
+kernel_obj		:=	$(kernel_src_cc:$(kernel_srcdir)/%.c=$(kernel_objdir)/%.o) \
+					$(kernel_src_as:$(kernel_srcdir)/%.s=$(kernel_objdir)/%.o)
+lib_obj			:=	$(lib_src_cc:$(libdir)/%.c=$(lib_objdir)/%.o)
 
-gen_object = $(BUILDDIR)/$(shell basename "$(dir)").o
-kernel_objects := $(loader_o) $(kernel_o)
-kernel_objects += $(foreach dir,$(module_dirs),$(gen_object))
+boot_bin		:=	$(builddir)/boot.bin
+kernel_bin		:=	$(builddir)/kernel.bin
 
 # compiler flags
-ASFLAGS += --warn
-CFLAGS += -std=gnu99 -ffreestanding -O2 -nostdlib -Wall -Wextra -lgcc
-CFLAGS_KERNEL := $(CFLAGS) -I$(incdir)
-CFLAGS_KERNEL_LINK := -T$(kernel_ld) -ffreestanding -O2 -nostdlib -lgcc
-LDFLAGS_BOOT := $(LDFLAGS) -T$(boot_ld) --oformat=binary
+ASFLAGS			+= 	--warn
+LDFLAGS_BOOT 	:= 	$(LDFLAGS) -T$(boot_ld) --oformat=binary
+CFLAGS			+= 	-std=gnu99 -ffreestanding -O2 -nostdlib -Wall -Wextra -lgcc -I$(incdir) -c
+CFLAGS_LINK 	:= 	-T$(kernel_ld) -ffreestanding -O2 -nostdlib -lgcc
+
+# messages
+MSG_AS			= 	** (AS) $^
+MSG_CC 			= 	** (CC) $^
+MSG_LD 			= 	** (LD) $^
+MSG_CC_LINK 	= 	** (CC) [link] $^
+
+# executables configured in environment file
+PATH 		:=	$(PATH):$(prefix)/bin
+AS		= 	echo "$(MSG_AS)"; $(target)-as
+CC		= 	echo "$(MSG_CC)"; $(target)-gcc
+LD 		= 	echo "$(MSG_LD)"; $(target)-ld
+CC_LINK	= 	echo "$(MSG_CC_LINK)"; $(target)-gcc
 
 .SILENT:
-all: init boot_bin kernel_bin
+all : init $(boot_bin) $(kernel_bin)
 
 init:
-	mkdir -p $(BUILDDIR)
-
-boot_o:
-	echo "** (AS) bootloader"
-	$(AS) -o $(boot_o) $(ASFLAGS) $(boot_sources)
-
-boot_bin: boot_o
-	echo "** (LD) link bootloader"
-	$(LD) -o $(boot_bin) $(LDFLAGS_BOOT) $(boot_objects)
-
-loader_o:
-	echo "** (AS) kernel loader"
-	$(AS) -o $(loader_o) $(ASFLAGS) $(loader_sources)
-
-kernel_modules:
-	for module in $(module_dirs); do \
-		name=$$(basename $${module}); \
-		object=$(BUILDDIR)/$${name}.o; \
-		sources=$${module}/*.c; \
-		echo "** (CC) kernel $${name}"; \
-		$(CC) -o $${object} $(CFLAGS_KERNEL) -c $${sources}; \
-	done
-
-kernel_o:
-	echo "** (CC) kernel"
-	$(CC) -o $(kernel_o) $(CFLAGS_KERNEL) -c $(kernel_sources)
-
-kernel_bin: loader_o kernel_modules kernel_o
-	echo "** (CC/LD) link kernel"
-	$(CC) -o $(kernel_bin) $(CFLAGS_KERNEL_LINK) $(kernel_objects)
+	@mkdir -p $(builddirs)
 
 clean:
-	rm -rf $(BUILDDIR)
+	@rm -rf $(builddirs)
+
+# bootloader
+$(boot_bin) : $(boot_obj)
+	$(LD) -o $@ $(LDFLAGS_BOOT) $^
+
+$(boot_objdir)/%.o : $(boot_srcdir)/%.s
+	$(AS) -o $@ $(ASFLAGS) $^
+
+# kernel
+$(kernel_bin) : $(kernel_obj) $(lib_obj)
+	$(CC_LINK) -o $@ $(CFLAGS_LINK) $^
+
+$(kernel_objdir)/%.o : $(kernel_srcdir)/%.c
+	$(CC) -o $@ $(CFLAGS) $^
+
+$(kernel_objdir)/%.o : $(kernel_srcdir)/%.s
+	$(AS) -o $@ $(ASFLAGS) $^
+
+# libraries
+$(lib_objdir)/%.o : $(libdir)/%.c
+	$(CC) -o $@ $(CFLAGS) $^
+
+endif
