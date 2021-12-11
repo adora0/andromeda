@@ -44,14 +44,13 @@ enum VGA_COLOR {
 #define VGA_FG		        VGA_COLOR_LIGHT_GREY
 #define VGA_BG		        VGA_COLOR_BLACK
 #define VGA_BUFFER_START    (vga_buffer_t) 0xb8000
+#define VGA_NULL			(vga_char_t) 0
 
 #define VGA_INDEX(y,w,x)    (y * w + x)
-#define VGA_CURRENT_INDEX() (display.row * display.width + display.column)
-
-#define VGA_NULL			(vga_char_t) 0
 
 void vga_init(void);
 void vga_clear(void);
+void vga_scroll(size_t rows);
 void vga_putc(char c);
 void vga_write(const char *data, size_t size);
 void vga_puts(const char *str);

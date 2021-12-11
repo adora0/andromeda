@@ -32,7 +32,6 @@ _start:
     mov $stack_top, %esp
     /* enter kernel */
     call kernel_main
-    /* TODO: initialize GDT and paging */
     /* disable interrupts and loop when finished */
     cli
 1:  hlt
