@@ -27,9 +27,6 @@ kernel_obj		:=	$(kernel_src_cc:$(kernel_srcdir)/%.c=$(kernel_objdir)/%.o) \
 					$(kernel_src_as:$(kernel_srcdir)/%.s=$(kernel_objdir)/%.o)
 lib_obj			:=	$(lib_src_cc:$(libdir)/%.c=$(lib_objdir)/%.o)
 
-boot_bin		:=	$(builddir)/boot.bin
-kernel_bin		:=	$(builddir)/kernel.bin
-
 # compiler flags
 ASFLAGS			+= 	--warn
 LDFLAGS_BOOT 	:= 	$(LDFLAGS) -T$(boot_ld) --oformat=binary

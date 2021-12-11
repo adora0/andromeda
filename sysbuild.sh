@@ -18,21 +18,28 @@ remote_gcc="${remote_server}/gnu/gcc"
 version_binutils="2.37"
 version_gcc="11.2.0"
 archive_ext="tar.gz"
-archlist=(i586-elf x86_64-elf)
+archlist=(i386-elf x86_64-elf)
+target_x86_64="x86_64-elf"
 
 default_builddir="build"
 default_prefix="local"
-default_target="x86_64-elf"
+default_target="${target_x86_64}"
 default_execname="cosmos"
 logcolor=$'\e[2m'
 logcolor_notice=$'\e[1;32m'
 logcolor_error=$'\e[1;91m'
 logcolor_clear=$'\e[0m'
+output_boot_filename="boot.bin"
+output_kernel_filename="kernel.bin"
+
+qemu_exec_32="qemu-system-i386"
+qemu_exec_64="qemu-system-x86_64"
 
 # options
 unset BUILDDIR
 unset PREFIX
 unset TARGET
+unset QEMU_EXEC
 unset SILENT
 unset NORMALIZE
 unset NOTICE
@@ -276,6 +283,8 @@ prefix=${PREFIX}
 builddir=${BUILDDIR}
 target=${TARGET}
 execname=${EXECNAME}
+boot_bin=${BUILDDIR}/${output_boot_filename}
+kernel_bin=${BUILDDIR}/${output_kernel_filename}
 EOF
     # check prefix for installed toolchains
     local installed
@@ -291,7 +300,7 @@ EOF
     fi
 
     if [[ -n "${installed-}" ]]; then
-        command_log $"Found existing toolchain binaries"
+        command_log $"Found existing toolchain binaries."
     else
         mkdir -p "${BUILDDIR}"
         mkdir -p "${PREFIX}"
@@ -319,7 +328,7 @@ EOF
         command_log $"Starting build for binutils..."
         start_build "${src_binutils}"
         make
-        make install || log_err $"Failed to install binutils" 1
+        make install || log_err $"Failed to install binutils." 1
         cd "${basedir}"
         
         # build gcc
@@ -329,10 +338,10 @@ EOF
         make all-gcc
         make all-target-libgcc
         make install-gcc
-        make install-target-libgcc || log_err $"Failed to install gcc" 1
+        make install-target-libgcc || log_err $"Failed to install gcc." 1
         cd "${basedir}"
     fi
-    command_log_notice $"Configuration completed"
+    command_log_notice $"Configuration completed."
 )
 
 clean() {
@@ -358,6 +367,44 @@ clean() {
     fi
 }
 
+run() {
+    ## run the system in QEMU
+    [[ -n "${BUILDDIR}" ]] || BUILDDIR="${default_builddir}"
+
+    if [[ -n "${TARGET-}" ]]; then
+        if ! is_declared "${TARGET}" archlist; then
+            log_err $"Invalid target architecture '${TARGET}'" 2
+        fi
+    else
+        TARGET="${default_target}"
+    fi
+
+    if [[ -z "${QEMU_EXEC-}" ]]; then
+        if [[ "${TARGET}" = "${target_x86_64}" ]]; then
+            QEMU_EXEC=${qemu_exec_64}
+        else
+            QEMU_EXEC=${qemu_exec_32}
+        fi
+    fi
+    
+    if ! which "${QEMU_EXEC-}" >/dev/null 2>&1; then
+        log_err $"Unable to locate QEMU executable."
+    fi
+
+    local args
+    if [[ -n "${QEMU_USE_KERNEL-}" ]]; then
+        local kernel="${BUILDDIR}/${output_kernel_filename}"
+        args="-kernel "${kernel}" ${args}"
+    else
+        local image="${BUILDDIR}/${output_boot_filename}"
+        args="-drive file="${image}",index=0,if=floppy,format=raw ${args}"
+    fi
+
+    ${QEMU_EXEC} \
+        -machine type=pc-i440fx-3.1 \
+        ${args}
+}
+
 usage() {
     local basename=$(basename "$0")
     echo $"usage: $basename [options]... [commands]...
@@ -370,14 +417,18 @@ options:
  --output=<path>            specify build directory
  --prefix=<path>            specify toolchain prefix
  --name=<name>              specify default executable name
+ --qemu=<exec>              specify qemu executable
  --normalize                disable log colorization
  --list-targets             show available architectures
  --use-latest               fetch latest toolchain versions
  --allow-unauthenticated    ignore gpg signatures
  --ignore-installed         ignore existing binaries in prefix
+ --use-kernel               (qemu) boot from kernel
+ --use-fda                  (qemu) boot from floppy (default)
 commands:
  configure                  prepare the build environment and dependencies
- clean                      remove all entries found in .gitignore"
+ clean                      remove all entries found in .gitignore
+ run                        run the built system in QEMU"
 }
 
 version() {
@@ -427,6 +478,8 @@ while getopts "${optstr}" OPT; do
                     get_long PREFIX "$@" ;;
                 ($"name")
                     get_long EXECNAME "$@" ;;
+                ("qemu")
+                    get_long QEMU_EXEC "$@" ;;
                 ($"silent")
                     SILENT=1 ;;
                 ($"normalize")
@@ -437,6 +490,10 @@ while getopts "${optstr}" OPT; do
                     IGNORE_SIG=1 ;;
                 ($"ignore-installed")
                     IGNORE_INSTALLED=1 ;;
+                ($"use-kernel")
+                    QEMU_USE_KERNEL=1 ;;
+                ($"use-fda")
+                    QEMU_USE_FDA=1 ;;
                 (*)
                     arg_err ;;
             esac
@@ -469,6 +526,9 @@ do
             exit ;;
         ($"clean")
             clean
+            exit ;;
+        ($"run")
+            run
             exit ;;
         (*) # not recognised
             command_err ;;

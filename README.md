@@ -16,23 +16,33 @@ The system is structured to comprise a basic kernel, bootloader and userspace co
 ## Hardware support
 
 - Target
-    - x86_64 64-bit CPU *(AMD64/Intel64 compatible, AMD Opteron / Intel Pentium 4 Prescott and newer)*
+    - x86_64 64-bit CPU *(AMD64/Intel64 compatible, AMD Opteron / Intel Pentium 4 Prescott or newer)*
     - UEFI 2.0 compatible firmware
 - Base
-    - i586 32-bit CPU *(IA-32 compatible, Intel Pentium and newer)*
+    - i386 32-bit CPU *(IA-32 compatible, Intel i386 or newer)*
     - IBM PC-compatible BIOS firmware 
 
 ## Build
 
 ### Prerequesites
 
-See `DEPENDENCIES` for a newline-separated list of build dependencies. Package names are taken from the default Arch Linux package repositories and are primarily from the GNU utilities.
+See `tools/BUILDDEPS` for a newline-separated list of build dependencies. Package names are taken from the default Arch Linux package repositories and are primarily from the GNU utilities.
+
+See `tools/OPTDEPS` for extra or post-build dependencies such as QEMU.
+
+### Managing the Build Environment
+
+The environment is configured by the `sysbuild` shell script.
+
+To display its usage, use:
+
+`$ ./sysbuild.sh --help`
 
 ### Setup
 
-`$ ./sysbuild.sh configure`
+Prepare the build environment and build the toolchain.
 
-Prepares build environment and builds the toolchain.
+`$ ./sysbuild.sh configure`
 
 ### Compilation
 
@@ -40,7 +50,9 @@ Prepares build environment and builds the toolchain.
 
 ### Testing
 
-`$ make run`
+*Requires `qemu-system-x86_64` or `qemu-system-i386`.*
+
+`$ ./sysbuild.sh run`
 
 ## License
 
@@ -48,7 +60,7 @@ Released under the GPLv3 license. See `NOTICE` and `COPYING` for details.
 
 ## Documentation
 
-Documentation is currently authored in English (United States) and refers to frequently used acronyms in hardware and software architecture and not all acronyms/abbreviations may be cited.
+Documentation is currently authored in English and refers to frequently used acronyms in hardware and software architecture and not all acronyms/abbreviations may be cited.
 
 ### Index
 
