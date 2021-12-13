@@ -1,29 +1,20 @@
-EXECDIR?=../../scripts
-
-DEFAULT_TARGET!=$(EXECDIR)/default_target.sh
-TARGET?=DEFAULT_TARGET
-TARGET_ARCH!=$(EXECDIR)/target_to_arch.sh $(TARGET)
-
 BUILDDIR?=.
 OBJDIR=$(BUILDDIR)/boot
-ARCHDIR=arch/$(TARGET_ARCH)
-
-ASFLAGS:=$(ASFLAGS)
-LDFLAGS:=$(LDFLAGS)
+ARCHDIR=arch/$(ARCH)
 
 include $(ARCHDIR)/make.config
+include ./make.config
 
-LDFLAGS:=$(LDFLAGS) $(BOOT_ARCH_LDFLAGS)
+ASFLAGS:=$(ASFLAGS) $(BOOT_ASFLAGS) $(BOOT_ARCH_ASFLAGS)
+LDFLAGS:=$(LDFLAGS) $(BOOT_LDFLAGS) $(BOOT_ARCH_LDFLAGS)
 
 SRC=\
 $(BOOT_ARCH_SRC) \
-$(LIBS)
+$(BOOT_SRC)
 
 OBJS=$(patsubst %, $(OBJDIR)/%.o, $(SRC))
 
-BOOT=$(BUILDDIR)/$(NAME)-boot
-
-.PHONY: all clean
+.PHONY: all clean install-headers
 
 all: $(BOOT)
 
@@ -40,3 +31,5 @@ clean:
 	@rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d
 
 install: $(BOOT)
+
+install-headers:

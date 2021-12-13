@@ -1,42 +1,22 @@
-EXECDIR?=../../scripts
-
-DEFAULT_TARGET!=$(EXECDIR)/default_target.sh
-TARGET?=DEFAULT_TARGET
-TARGET_ARCH!=$(EXECDIR)/target_to_arch.sh $(TARGET)
+BUILDDIR?=.
+OBJDIR=$(BUILDDIR)/libc
+ARCHDIR=arch/$(ARCH)
 
 CSTD?=gnu99
 CFLAGS?=-O2 -g
 CPPFLAGS?=
 LIBS?=
 
-DESTDIR?=.
-PREFIX?=/usr/local
-EXEC_PREFIX?=$(PREFIX)
-INCLUDEDIR?=$(EXEC_PREFIX)/include
-LIBDIR?=$(EXEC_PREFIX)/lib
-
-BUILDDIR?=.
-OBJDIR=$(BUILDDIR)/libc
-ARCHDIR=arch/$(TARGET_ARCH)
-
-CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS:=$(CPPFLAGS) -D__is_libc -Iinclude
-LIBK_CFLAGS:=$(CFLAGS)
-LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_libk
-
 include $(ARCHDIR)/make.config
+include ./make.config
 
-CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
-LIBK_CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
-LIBK_CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+CFLAGS:=$(CFLAGS) $(LIBC_CFLAGS) $(LIB_ARCH_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(LIBC_CPPFLAGS) $(LIB_ARCH_CPPFLAGS)
+LIBK_CFLAGS:=$(CFLAGS) $(LIBK_CFLAGS) $(KERNEL_CFLAGS) $(KERNEL_ARCH_CFLAGS)
+LIBK_CPPFLAGS:=$(CPPFLAGS) $(LIBK_CPPFLAGS) $(KERNEL_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 
-FREESRC=\
-$(ARCH_FREESRC) \
-string/strlen.c
-
-HOSTEDSRC=\
-$(ARCH_HOSTEDSRC)
+FREESRC=$(LIBC_ARCH_FREESRC) $(LIBC_FREESRC)
+HOSTEDSRC=$(LIBC_ARCH_HOSTEDSRC) $(LIBC_FREESRC)
 
 FREEOBJS=$(patsubst %, $(OBJDIR)/%.o, $(FREESRC))
 HOSTEDOBJS=$(patsubst %, $(OBJDIR)/%.o, $(HOSTEDSRC))
@@ -48,16 +28,16 @@ $(HOSTEDOBJS)
 LIBK_OBJS=$(FREEOBJS:.o=.lk.o)
 
 #BINARIES=libc.a libk.a # libc support incomplete
-BINARIES=$(BUILDDIR)/libk.a
+BINARIES=$(OBJDIR)/libk.a
 
 .PHONY: all clean install install-headers install-libs
 
 all: $(BINARIES)
 
-$(BUILDDIR)/libc.a: $(OBJS)
+$(OBJDIR)/libc.a: $(OBJS)
 	@$(AR) rcs $@ $^
 
-$(BUILDDIR)/libk.a: $(LIBK_OBJS)
+$(OBJDIR)/libk.a: $(LIBK_OBJS)
 	@$(AR) rcs $@ $^
 
 $(OBJDIR)/%.c.o: %.c
@@ -84,9 +64,9 @@ clean:
 install: install-headers install-libs
 
 install-headers:
-	@mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	@cp -R --preserve=timestamps include/. $(DESTDIR)$(INCLUDEDIR)/.
+	@mkdir -p $(SYSROOT)/$(INSTALL_INCLUDEDIR)
+	@cp -R --preserve=timestamps include/. $(SYSROOT)/$(INSTALL_INCLUDEDIR)/.
 
 install-libs: $(BINARIES)
-	@mkdir -p $(DESTDIR)$(LIBDIR)
-	@cp $^ $(DESTDIR)$(LIBDIR)
+	@mkdir -p $(SYSROOT)/$(INSTALL_LIBDIR)
+	@cp $^ $(SYSROOT)/$(INSTALL_LIBDIR)

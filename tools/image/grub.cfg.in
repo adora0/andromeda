@@ -1,0 +1,4 @@
+set timeout=0
+menuentry "$PROJECT_NAME" {
+	multiboot /boot/$KERNEL_NAME
+}

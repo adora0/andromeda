@@ -1,50 +1,28 @@
-EXECDIR?=../../scripts
-
-DEFAULT_TARGET!=$(EXECDIR)/default_target.sh
-TARGET?=DEFAULT_TARGET
-TARGET_ARCH!=$(EXECDIR)/target_to_arch.sh $(TARGET)
+BUILDDIR?=.
+OBJDIR=$(BUILDDIR)/kernel
+ARCHDIR=arch/$(ARCH)
 
 CSTD?=gnu99
 CFLAGS?=-O2 -g
 CPPFLAGS?=
-LDFLAGS?=
 LIBS?=
 
-DESTDIR?=.
-PREFIX?=/usr/local
-EXEC_PREFIX?=$(PREFIX)
-INCLUDEDIR?=$(EXEC_PREFIX)/include
-BOOTDIR?=$(EXEC_PREFIX)/boot
-
-BUILDDIR?=.
-OBJDIR=$(BUILDDIR)/kernel
-LIB_OBJDIR=$(BUILDDIR)/libc
-ARCHDIR=arch/$(TARGET_ARCH)
-
-CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude -I../libc/include
-LDFLAGS:=$(LDFLAGS)
-LIBS:=$(LIBS) -nostdlib -L$(BUILDDIR) -lk -lgcc
-
 include $(ARCHDIR)/make.config
+include ./make.config
 
-CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
-LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
+CFLAGS:=$(CFLAGS) $(KERNEL_CFLAGS) $(KERNEL_ARCH_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(KERNEL_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(KERNEL_LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
+LIBS:=$(LIBS) $(KERNEL_LIBS) $(KERNEL_ARCH_LIBS)
 
-KERNEL_SRC=\
-$(KERNEL_ARCH_SRC) \
-kernel.c
+SRC=$(KERNEL_ARCH_SRC) $(KERNEL_SRC)
 
 OBJS=\
 $(OBJDIR)/$(ARCHDIR)/crti.S.o \
 $(OBJDIR)/$(ARCHDIR)/crtbegin.o \
-$(patsubst %, $(OBJDIR)/%.o, $(KERNEL_SRC)) \
+$(patsubst %, $(OBJDIR)/%.o, $(SRC)) \
 $(OBJDIR)/$(ARCHDIR)/crtend.o \
 $(OBJDIR)/$(ARCHDIR)/crtn.S.o
-
-KERNEL=$(BUILDDIR)/$(NAME)-kernel
 
 .PHONY: all clean install install-headers install-kernel
 
@@ -74,9 +52,9 @@ clean:
 install: install-headers install-kernel
 
 install-headers:
-	@mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	@cp -R --preserve=timestamps include/. $(DESTDIR)$(INCLUDEDIR)/.
+	@mkdir -p $(SYSROOT)/$(INSTALL_INCLUDEDIR)
+	@cp -R --preserve=timestamps include/. $(SYSROOT)/$(INSTALL_INCLUDEDIR)/.
 
 install-kernel: $(KERNEL)
-	@mkdir -p $(DESTDIR)$(BOOTDIR)
-	@cp $^ $(DESTDIR)$(BOOTDIR)
+	@mkdir -p $(SYSROOT)/$(INSTALL_BOOTDIR)
+	@cp $^ $(SYSROOT)/$(INSTALL_BOOTDIR)
