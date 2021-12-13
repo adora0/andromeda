@@ -7,15 +7,40 @@
 
 ## System Source Structure
 
-```
-├── include/
-│   └── COMPONENT/
-│       ├── *.h     —— C header
-│       │               (definitions)
-│       └── *.inc   —— asm include
-└── src/
-    └── COMPONENT/
-        ├── *.c     —— C source
-        │               (declerations)
-        └── *.s     —— asm source
-```
+- `src/`
+    - `boot/`
+        - `arch/`
+            - `<architecture>/`
+                - `*.s`
+                - `linker.ld`
+                - `make.config`
+        - `Makefile`
+    - `kernel/`
+        - `arch/`
+            - `<architecture>/`
+                - `*.s`
+                - `*.c`
+                - `linker.ld`
+                - `make.config`
+        - `include/`
+            - `<component>/`
+                - `*.h`
+        - `*.c`
+        - `Makefile`
+    - `libc/`
+        - `arch/`
+            - `<architecture>/`
+                - `make.config`
+        - `include/`
+            - `<component>/`
+                - `*.h`
+        - `<component>/`
+            - `*.c`
+        - `Makefile`
+
+## Makefile Notation
+
+- `C-`: Compiler
+- `CPP-`: C preprocessor
+- `CXX-`: C++ compiler
+- `LD-`: Linker

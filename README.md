@@ -1,6 +1,6 @@
 # Cosmos
 
-*Cosmos*: The Cosmos Operating System
+The Cosmos Operating System
 
 ## Overview
 
@@ -22,37 +22,56 @@ The system is structured to comprise a basic kernel, bootloader and userspace co
     - x86_64 64-bit CPU *(AMD64/Intel64 compatible, AMD Opteron / Intel Pentium 4 Prescott or newer)*
     - UEFI 2.0 compatible firmware
 
-## Build
+## Build Environment
 
 ### Prerequesites
 
-See `tools/BUILDDEPS` for a newline-separated list of build dependencies. Package names are taken from the default Arch Linux package repositories and are primarily from the GNU utilities.
+- `sh`
+- `grub`
+    - `grub-file`
+    - `grub-mkrescue`
+- `libisoburn`
+    - `xorriso`
+    
+- Toolchain (see [Building the Toolchain](###Building-the-Toolchain))
+    - `<TARGET>-binutils`
+        - `<TARGET>-ar`
+        - `<TARGET>-as`
+        - `<TARGET>-ld`
+    - `<TARGET>-gcc`
 
-See `tools/OPTDEPS` for extra or post-build dependencies such as QEMU.
+Currently supported targets:
 
-### Managing the Build Environment
+- `i386-elf`
+- `i486-elf`
+- `i586-elf`
+- `i686-elf`
 
-The environment is configured by the `sysbuild` shell script.
+### Building the Toolchain
 
-To display its usage, use:
+Requires:
 
-`$ ./sysbuild.sh --help`
+- `curl`
+- `tar`
+- `gcc`
 
-### Setup
+(Optional) Set the installation directory:
 
-Prepare the build environment and build the toolchain:
+`$ ./scripts/set_prefix.sh <PREFIX>`
 
-`$ ./sysbuild.sh configure`
+Build the toolchain:
 
-### Compilation
+`$ ./scripts/build_toolchain.sh`
 
-`$ make`
+### Building
+
+`$ ./scripts/build_image.sh`
 
 ### Testing
 
 *Requires `qemu-system-x86_64` or `qemu-system-i386`*
 
-`$ ./sysbuild.sh run`
+`$ ./scripts/qemu.sh`
 
 ## License
 
@@ -60,7 +79,7 @@ Released under the GPLv3 license. See `NOTICE` and `COPYING` for details.
 
 ## Documentation
 
-Documentation is currently authored in English and refers to frequently used acronyms in hardware and software architecture and not all acronyms/abbreviations may be cited.
+Documentation is authored in English and refers to frequently used acronyms in hardware and software architecture and not all acronyms/abbreviations may be cited.
 
 ### Index
 

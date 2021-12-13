@@ -1,6 +1,6 @@
 # Software Architecture
 
-## Component roadmap
+## Component Roadmap
 
 __
 
@@ -40,6 +40,6 @@ __
 
 ![Graphic](resources/architecture.png)
 
-## Component etymology
+## Component Etymology
 
 The components are named after Greek godesses just to make things cooler than otherwise. Lesbos is a little reference to the *Isle of Lesbos*, and the name Cosmos itself turned out to contain 'os' as its own suffix.
