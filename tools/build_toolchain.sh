@@ -2,7 +2,8 @@
 if test -f ./envfile; then . ./envfile; fi
 if test -f ./.env.local; then . ./.env.local; fi
 
-BUILDDIR=$BUILDDIR/tools
+TARGET=${TARGET-$DEFAULT_TARGET}
+BUILDDIR=${BUILDDIR-$DEFAULT_BUILDDIR}/tools
 
 server='ftp://ftp.gnu.org'
 binutils_version='2.37'

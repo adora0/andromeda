@@ -53,6 +53,10 @@ Requires:
 
 `$ ./tools/set_prefix.sh <PREFIX>`
 
+(Optional) Set the target architecture:
+
+`$ ./tools/set_target.sh <TARGET>`
+
 Build the toolchain:
 
 `$ ./tools/build_toolchain.sh`
