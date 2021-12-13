@@ -79,7 +79,6 @@ Documentation is authored in English and refers to frequently used acronyms in h
 
 ### Index
 
-1. [Building](doc/build.md)
-2. [Architecture](doc/architecture.md)
-3. [Source Code](doc/source.md)
-4. [External Reference for Development](doc/reference.md)
+- [Architecture](doc/architecture.md)
+- [Source Code](doc/source.md)
+- [External Reference for Development](doc/reference.md)
