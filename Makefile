@@ -70,12 +70,22 @@ $(SRC_COMPONENTS):
 image: $(SRC_COMPONENTS)
 	@mkdir -p $(IMAGEDIR)/boot/grub
 	@cp $(KERNEL) $(IMAGEDIR)/boot/$(KERNEL_NAME)
-	@eval "echo \"$$(cat $(TOOLSDIR)/image/grub.cfg.in)\""\
-	 >$(IMAGEDIR)/boot/grub/grub.cfg
+	@eval "echo \"$$(cat $(TOOLSDIR)/image/grub.cfg.in)\"" \
+		>$(IMAGEDIR)/boot/grub/grub.cfg
 	@grub-mkrescue -o $(IMAGE) $(IMAGEDIR)
 
 qemu: image
 	@qemu-system-$(ARCH) -cdrom $(IMAGE)
+
+debug: image
+	@qemu-system-$(ARCH) \
+		-cdrom $(IMAGE) \
+		-chardev socket,path=.gdb.socket,server=on,wait=off,id=gdb0 \
+		-gdb chardev:gdb0 \
+		-S & \
+		gdb -ex 'file $(KERNEL)' -ex 'target remote .gdb.socket'; \
+		kill $$(jobs -p) 2>/dev/null; \
+		rm -f .gdb.socket
 
 clean: $(SRC_COMPONENTS)
 	@$(MAKE) clean -C $<

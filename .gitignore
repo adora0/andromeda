@@ -1,5 +1,6 @@
+.env.local
 /build
 *.o
 *.d
 *.a
-.env.local
+*.socket

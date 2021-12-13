@@ -69,9 +69,15 @@ Build the toolchain:
 
 ### Testing
 
-*Requires `qemu-system-x86_64` or `qemu-system-i386`*
+*Requires `qemu-system-i386` or `qemu-system-x86_64`*
 
 `$ make qemu`
+
+### Debugging
+
+*Requires QEMU and `gdb`*
+
+`$ make debug`
 
 ## License
 
