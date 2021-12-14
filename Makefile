@@ -3,10 +3,7 @@ include ./make.config
 BUILDDIR?=./build
 IMAGEDIR?=$(BUILDDIR)/image
 
-SRC_COMPONENTS:=$(shell \
-for COMPONENT in $(COMPONENTS); do \
-	echo "$(SRCDIR)/$$COMPONENT"; \
-done)
+CLEAN_COMPONENTS:=$(addsuffix _clean, $(COMPONENTS))
 
 export ARCH:=$(shell \
 if echo "$(TARGET)" | grep -Eq 'i[[:digit:]]86-'; then \
@@ -42,12 +39,13 @@ export INSTALL_BOOTDIR
 export BUILDDIR
 export PROJECT_NAME
 
-export BOOT_NAME=$(PROJECT_NAME)-boot
-export KERNEL_NAME=$(PROJECT_NAME)-kernel
+export BOOT_NAME=boot.bin
+export KERNEL_NAME=kernel.bin
 
 export BOOT=$(BUILDDIR)/$(BOOT_NAME)
 export KERNEL=$(BUILDDIR)/$(KERNEL_NAME)
 export IMAGE=$(BUILDDIR)/$(PROJECT_NAME).iso
+export BOOT_IMAGE=$(BUILDDIR)/$(PROJECT_NAME).img
 
 # Configure the cross-compiler to use the desired system root.
 # The build should be installed to this directory.
@@ -60,14 +58,14 @@ if echo "$(CC)" | grep -Eq -- '-elf($|-)'; then \
 	echo "$(CC) -isystem=$INCLUDEDIR"; \
 fi)
 
-.PHONY: all clean $(SRC_COMPONENTS) image qemu
+.PHONY: all clean $(COMPONENTS) image qemu
 
-all: $(SRC_COMPONENTS)
+all: $(COMPONENTS)
 
-$(SRC_COMPONENTS):
-	@$(MAKE) install -C $@
+$(COMPONENTS):
+	@$(MAKE) install -C $(SRCDIR)/$@
 
-image: $(SRC_COMPONENTS)
+image: $(COMPONENTS)
 	@mkdir -p $(IMAGEDIR)/boot/grub
 	@cp $(KERNEL) $(IMAGEDIR)/boot/$(KERNEL_NAME)
 	@eval "echo \"$$(cat $(TOOLSDIR)/image/grub.cfg.in)\"" \
@@ -87,6 +85,8 @@ debug: image
 		kill $$(jobs -p) 2>/dev/null; \
 		rm -f .gdb.socket
 
-clean: $(SRC_COMPONENTS)
+%_clean: $(SRCDIR)/%
 	@$(MAKE) clean -C $<
+
+clean: $(CLEAN_COMPONENTS)
 	@rm -rf $(BUILDDIR)
