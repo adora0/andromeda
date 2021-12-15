@@ -29,8 +29,8 @@ $(BOOT): $(OBJS) $(ARCHDIR)/linker.ld
 
 $(OBJDIR)/%.S.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
-	@$(CPP) $(CPPFLAGS) -o $(OBJDIR)/$< $<
-	@$(AS) $(ASFLAGS) -o $@ -c $(OBJDIR)/$<
+	@$(CPP) $(CPPFLAGS) -o $(OBJDIR)/$*.s $<
+	@$(AS) $(ASFLAGS) -o $@ -c $(OBJDIR)/$*.s
 	
 i386-image: $(BOOT)
 	@dd \

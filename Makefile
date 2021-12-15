@@ -50,11 +50,13 @@ export PROJECT_INCLUDES
 
 export BOOT_NAME=boot.bin
 export KERNEL_NAME=kernel.bin
+export BOOT_IMAGE_NAME=boot.img
+export KERNEL_IMAGE_NAME=kernel.iso
 
 export BOOT=$(BUILDDIR)/$(BOOT_NAME)
 export KERNEL=$(BUILDDIR)/$(KERNEL_NAME)
-export IMAGE=$(BUILDDIR)/$(PROJECT_NAME).iso
-export BOOT_IMAGE=$(BUILDDIR)/$(PROJECT_NAME).img
+export BOOT_IMAGE=$(BUILDDIR)/$(BOOT_IMAGE_NAME)
+export KERNEL_IMAGE=$(BUILDDIR)/$(KERNEL_IMAGE_NAME)
 
 # Configure the cross-compiler to use the desired system root.
 # The build should be installed to this directory.
@@ -101,14 +103,14 @@ kernel-image: $(COMPONENTS)
 	@cp $(KERNEL) $(IMAGEDIR)/boot/$(KERNEL_NAME)
 	@eval "echo \"$$(cat $(TOOLSDIR)/image/grub.cfg.in)\"" \
 		>$(IMAGEDIR)/boot/grub/grub.cfg
-	@grub-mkrescue -o $(IMAGE) $(IMAGEDIR)
+	@grub-mkrescue -o $(KERNEL_IMAGE) $(IMAGEDIR)
 
 qemu-kernel: kernel-image
-	@qemu-system-$(ARCH) -cdrom $(IMAGE)
+	@qemu-system-$(ARCH) -cdrom $(KERNEL_IMAGE)
 
 debug-kernel: kernel-image
 	@qemu-system-$(ARCH) \
-		-cdrom $(IMAGE) \
+		-cdrom $(KERNEL_IMAGE) \
 		-chardev socket,path=.gdb.socket,server=on,wait=off,id=gdb0 \
 		-gdb chardev:gdb0 \
 		-S & \
