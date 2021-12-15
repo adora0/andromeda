@@ -24,6 +24,9 @@ $(patsubst %, $(OBJDIR)/%.o, $(SRC)) \
 $(OBJDIR)/$(ARCHDIR)/crtend.o \
 $(OBJDIR)/$(ARCHDIR)/crtn.S.o
 
+INCLUDES=\
+$(PROJECT_INCLUDES)
+
 .PHONY: all clean install install-headers install-kernel
 
 all: $(BUILDDIR)/$(NAME).kernel
@@ -36,11 +39,11 @@ $(OBJDIR)/$(ARCHDIR)/crtbegin.o $(OBJDIR)/$(ARCHDIR)/crtend.o:
 	@OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && \
 	cp "$$OBJ" $@
 
-$(OBJDIR)/%.c.o: %.c
+$(OBJDIR)/%.c.o: %.c $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -std=$(CSTD) -o $@ -c $<
 
-$(OBJDIR)/%.S.o: %.S
+$(OBJDIR)/%.S.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
 

@@ -1,19 +1,18 @@
-# Cosmos
+# Andromeda
 
-The Cosmos Operating System
+The Andromeda Operating System
 
 ## Overview
 
-Cosmos is structured to be a Unix-like operating system with the following characteristics in mind:
+Andromeda is a project to build a Unix-like operating system with the following in mind:
 
-- Monolithic/modular multitasking kernel
-- C kernel codebase (C99)
+- Monolithic/modular C kernel with multitasking
 - POSIX compliance and interoperability with other systems without compromising simplicity
 
 ## Hardware support
 
-- i386 32-bit CPU *(IA-32 compatible, Intel i386 or newer)*
-- IBM PC-compatible BIOS firmware
+- i386 or newer IA-32/amd64 CPU
+- PC-compatible BIOS firmware
 
 ## Build Environment
 

@@ -1,8 +1,4 @@
-/* directives */
-	.macro print str
-	leaw	\str, %si
-	call	print
-	.endm
+#include <boot/config.h>
 
 	.code16
 	.section .text
@@ -11,8 +7,12 @@
 /* 	start execution (loaded at 0x7c00)
 *	FAT12/16 BPB start (BIOS parameter block) */
 _start:
-bpb:	jmp	boot		# skip disk format information
-	nop			# E9 (..) 90 opcodes required by BPB
+bpb:
+	/*	E9 (..) 90 opcodes required by FAT specification
+	*	jmp short, nop; or jmp
+	*/
+	jmp	boot		# skip disk format information
+	
 
 	/* parameters set by format tools */
 	. = _start + 0x03
@@ -30,8 +30,6 @@ head_count:		.word	0	# number of heads on storage media
 hidden_sectors:		.long	0	# number of hidden sectors
 large_sectors:		.long	0	# number of 32-bit sectors
 
-/*	END BPB flags */
-
 /*	FAT12/16 EBPB (Extended Boot Record) */
 	. = _start + 0x024
 ebpb:
@@ -42,31 +40,38 @@ volume_serial:		.space 4, 0	# serial for volume tracking (32-bit hex)
 volume_label:		.space 11, 0	# volume label string (max. 11 bytes, space-padded)
 system_id:		.space 8, 0	# file system type representation (not used)
 
-/*	END EBPB flags */
+/* 	boot code start		*/
 
-/* 	boot sector code */
+	. = _start + 0x03E
 
-	. = _start + 0x03e
 boot:
-	print	msg_load
+	call	clear
+
+	leaw	msg_start, %si
+	call	puts
+
 	jmp	_end
 
-/* labels */
-print:
-	lodsb			# load byte from %si into %al
-	orb	%al, %al
-	jz	print_		# exit on null byte
-	movb	$0x0e, %ah
-	int	$0x10		# print character
-	jmp	print		# next
-print_:
-	ret
-
-msg_load:	.asciz "Loading..."
-
 _end:
+	cli
+_end__hlt:
+	hlt
+	jmp _end__hlt
 
-/* 	END boot sector code */
+/*	includes		*/
 
-	. = _start + 0x1fe	# 512 bytes - signature length
-	.word 0xaa55		# bootable signature
+	.include "video.S"
+
+/*	symbols			*/
+
+msg_start:	.asciz BOOT_MSG_START
+
+	. = _start + 0x1FE	# 512 bytes - signature length
+	.word 0xAA55		# bootable signature
+
+/*	uninitialized		*/
+
+	.section .bss
+
+	.org 0x10000
+buffer:		.space 524288, 0	# 512KiB to copy data

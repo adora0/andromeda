@@ -25,6 +25,9 @@ OBJS=\
 $(FREEOBJS) \
 $(HOSTEDOBJS)
 
+INCLUDES=\
+$(PROJECT_INCLUDES)
+
 LIBK_OBJS=$(FREEOBJS:.o=.lk.o)
 
 #BINARIES=libc.a libk.a # libc support incomplete
@@ -40,19 +43,19 @@ $(OBJDIR)/libc.a: $(OBJS)
 $(OBJDIR)/libk.a: $(LIBK_OBJS)
 	@$(AR) rcs $@ $^
 
-$(OBJDIR)/%.c.o: %.c
+$(OBJDIR)/%.c.o: %.c $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -std=$(CSTD) -o $@ -c $<
 
-$(OBJDIR)/%.S.o: %.S
+$(OBJDIR)/%.S.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
 
-$(OBJDIR)/%.c.lk.o: %.c
+$(OBJDIR)/%.c.lk.o: %.c $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) -std=$(CSTD) -o $@ -c $<
 
-$(OBJDIR)/%.S.lk.o: %.S
+$(OBJDIR)/%.S.lk.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
 	@$(CC) $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) -o $@ -c $<
 

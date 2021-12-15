@@ -5,12 +5,18 @@ ARCHDIR=arch/$(ARCH)
 include $(ARCHDIR)/make.config
 include ./make.config
 
+CFLAGS:=$(CFLAGS) $(BOOT_CFLAGS) $(BOOT_ARCH_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(BOOT_CPPFLAGS) $(BOOT_ARCH_CPPFLAGS)
 ASFLAGS:=$(ASFLAGS) $(BOOT_ASFLAGS) $(BOOT_ARCH_ASFLAGS)
 LDFLAGS:=$(LDFLAGS) $(BOOT_LDFLAGS) $(BOOT_ARCH_LDFLAGS)
 
 SRC=\
 $(BOOT_ARCH_SRC) \
 $(BOOT_SRC)
+
+INCLUDES=\
+$(PROJECT_INCLUDES) \
+$(shell find . -name '*.S')
 
 OBJS=$(patsubst %, $(OBJDIR)/%.o, $(SRC))
 
@@ -21,10 +27,11 @@ all: $(BOOT)
 $(BOOT): $(OBJS) $(ARCHDIR)/linker.ld
 	@$(LD) $(LDFLAGS) -T$(ARCHDIR)/linker.ld -o $@ $(OBJS)
 
-$(OBJDIR)/%.S.o: %.S
+$(OBJDIR)/%.S.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
-	@$(AS) $(ASFLAGS) -o $@ $<
-
+	@$(CPP) $(CPPFLAGS) -o $(OBJDIR)/$< $<
+	@$(AS) $(ASFLAGS) -o $@ -c $(OBJDIR)/$<
+	
 i386-image: $(BOOT)
 	@dd \
 		if=/dev/null \
