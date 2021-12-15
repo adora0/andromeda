@@ -7,7 +7,9 @@ The Andromeda Operating System
 Andromeda is a project to build a Unix-like operating system with the following in mind:
 
 - Monolithic/modular C kernel with multitasking
-- POSIX compliance and interoperability with other systems without compromising simplicity
+- Standalone with own bootloader
+- POSIX compliance and libc implementation
+- Lightweight scalability
 
 ## Hardware support
 
@@ -16,22 +18,30 @@ Andromeda is a project to build a Unix-like operating system with the following 
 
 ## Build Environment
 
-### Prerequesites
+### Prerequisites
 
+*all:*
 - `sh`
 - `make`
-- `grub`
-    - `grub-file`
-    - `grub-mkrescue`
-- `libisoburn`
-    - `xorriso`
-    
+
 - Toolchain (see [Building the Toolchain](###Building-the-Toolchain))
     - `<TARGET>-binutils`
         - `<TARGET>-ar`
         - `<TARGET>-as`
         - `<TARGET>-ld`
     - `<TARGET>-gcc`
+        - `<TARGET>-cpp`
+        - `<TARGET>-gcc`
+
+*and either*:
+- `grub`
+    - `grub-file`
+    - `grub-mkrescue`
+- `libisoburn`
+    - `xorriso`
+
+*or*:
+- `mtools`
 
 Currently supported targets:
 
@@ -48,11 +58,11 @@ Requires:
 - `tar`
 - `gcc`
 
-(Optional) Set the installation directory:
+*(Optional)* Set the installation directory:
 
 `$ ./tools/set_prefix.sh <PREFIX>`
 
-(Optional) Set the target architecture:
+*(Optional)* Set the target architecture:
 
 `$ ./tools/set_target.sh <TARGET>`
 
@@ -62,21 +72,25 @@ Build the toolchain:
 
 ### Building
 
-`$ make`
+`$ make image` *(Uses bootloader)*
 
-`$ make image`
+`$ make kernel-image` *(Uses GRUB)*
 
 ### Testing
 
 *Requires `qemu-system-i386` or `qemu-system-x86_64`*
 
-`$ make qemu`
+`$ make qemu` *(Uses bootloader)*
+
+`$ make qemu-kernel` *(Uses GRUB)*
 
 ### Debugging
 
 *Requires QEMU and `gdb`*
 
-`$ make debug`
+`$ make debug` *(Uses bootloader)*
+
+`$ make debug-kernel` *(Uses GRUB)*
 
 ## License
 
@@ -88,6 +102,7 @@ Documentation is authored in English and refers to frequently used acronyms in h
 
 ### Index
 
-- [Architecture](doc/architecture.md)
-- [Source Code](doc/source.md)
-- [External Reference for Development](doc/reference.md)
+- [Design](doc/design.md)
+- [Source Structure](doc/source.md)
+- [Roadmap](doc/roadmap.md)
+- [Reference](doc/reference.md)

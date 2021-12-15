@@ -48,12 +48,10 @@ export BUILDDIR
 export PROJECT_NAME
 export PROJECT_INCLUDES
 
-export BOOT_NAME=boot.bin
 export KERNEL_NAME=kernel.bin
 export BOOT_IMAGE_NAME=boot.img
 export KERNEL_IMAGE_NAME=kernel.iso
 
-export BOOT=$(BUILDDIR)/$(BOOT_NAME)
 export KERNEL=$(BUILDDIR)/$(KERNEL_NAME)
 export BOOT_IMAGE=$(BUILDDIR)/$(BOOT_IMAGE_NAME)
 export KERNEL_IMAGE=$(BUILDDIR)/$(KERNEL_IMAGE_NAME)
@@ -81,7 +79,6 @@ $(COMPONENTS):
 image: $(ARCH)-image
 
 i386-image: $(COMPONENTS)
-	@mmd -i $(BOOT_IMAGE) ::boot
 	@mcopy -i $(BOOT_IMAGE) $(KERNEL) ::boot/kernel.bin
 
 qemu: image

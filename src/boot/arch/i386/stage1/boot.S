@@ -1,11 +1,14 @@
+/* 	C preprocessor directives 	*/
 #include <boot/config.h>
 
+/*	assembler directives		*/
 	.code16
 	.section .text
 	.global _start
 
 /* 	start execution (loaded at 0x7c00)
-*	FAT12/16 BPB start (BIOS parameter block) */
+*	FAT12/16 BPB start (BIOS parameter block)
+*/
 _start:
 bpb:
 	/*	E9 (..) 90 opcodes required by FAT specification
@@ -45,11 +48,18 @@ system_id:		.space 8, 0	# file system type representation (not used)
 	. = _start + 0x03E
 
 boot:
-	call	clear
-
+	call	vid_clear
 	leaw	msg_start, %si
-	call	puts
+	call	vid_puts	# bootloader start message
 
+	call	disk_reset
+	jc	disk_reset_err
+
+	jmp	_end
+
+disk_reset_err:
+	leaw	msg_disk_reset_err, %si
+	call	vid_puts
 	jmp	_end
 
 _end:
@@ -58,20 +68,23 @@ _end__hlt:
 	hlt
 	jmp _end__hlt
 
-/*	includes		*/
+/*	preprocessor includes	*/
 
 	.include "video.S"
+	.include "disk.S"
 
 /*	symbols			*/
 
-msg_start:	.asciz BOOT_MSG_START
+msg_start:		.asciz BOOT_MSG_START
+msg_disk_reset_err:	.asciz "Disk system reset failure\n\r"
+msg_disk_read_err:	.asciz "Disk read failure\n\r"
 
 	. = _start + 0x1FE	# 512 bytes - signature length
-	.word 0xAA55		# bootable signature
+	.word 0xAA55		# boot signature
 
 /*	uninitialized		*/
 
 	.section .bss
 
-	.org 0x10000
-buffer:		.space 524288, 0	# 512KiB to copy data
+	.org 0x7E00
+read_buffer:

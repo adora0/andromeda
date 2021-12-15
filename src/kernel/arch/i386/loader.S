@@ -35,6 +35,9 @@ stack_top:
 _start:
 	# initialize stack
 	mov	$stack_top, %esp
+
+	/* TODO: enable A20, initialize GDT */
+
 	# call global constructors
 	call	_init
 	# enter kernel

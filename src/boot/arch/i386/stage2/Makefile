@@ -1,0 +1,16 @@
+include ./make.config
+
+CPPFLAGS:=$(CPPFLAGS)
+ASFLAGS:=$(ASFLAGS)
+LDFLAGS:=$(LDFLAGS)
+
+OBJS=$(patsubst %, $(OBJDIR)/%.o, $(BOOT_STAGE2_SRC))
+
+$(BOOT_STAGE2): $(OBJS) linker.ld
+	@$(LD) $(LDFLAGS) -Tlinker.ld -o $@ $(OBJS)
+
+$(OBJDIR)/%.S.o: %.S $(INCLUDES)
+	@mkdir -p $(@D)
+	@$(CPP) $(CPPFLAGS) -o $(OBJDIR)/$*.s $<
+	@$(AS) $(ASFLAGS) -o $@ -c $(OBJDIR)/$*.s
+	

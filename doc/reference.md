@@ -1,3 +1,5 @@
-# External Reference for Development
+# Reference
+
+## External
 
 - [OSDev Wiki](https://wiki.osdev.org)
