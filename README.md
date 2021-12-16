@@ -102,7 +102,8 @@ Documentation is authored in English and refers to frequently used acronyms in h
 
 ### Index
 
+- [Roadmap](doc/roadmap.md)
+- [Known Issues](doc/issues.md)
 - [Design](doc/design.md)
 - [Source Structure](doc/source.md)
-- [Roadmap](doc/roadmap.md)
 - [Reference](doc/reference.md)
