@@ -30,16 +30,18 @@ $(ARCH)-image: $(BOOT_STAGE1) $(BOOT_STAGE2)
 		count=1 \
 		conv=notrunc
 	@mformat -i $(BOOT_IMAGE) \
-		-v "$(PROJECT_NAME)" \
+		-M $(BOOT_SECTOR_SIZE) \
+		-v "BOOT" \
 		-T $(BOOT_SECTORS) \
 		-h $(BOOT_HEADS) \
-		-s $(BOOT_TRACK_SECTORS) \
+		-s $(BOOT_SECTORS_TRACK) \
 		-r $(BOOT_ROOT_ENTRIES) \
 		-L $(BOOT_FAT) \
 		-R $(BOOT_RESERVED) \
+		-1 \
 		-k
-	@mmd -i $(BOOT_IMAGE) ::boot
-	@mcopy -i $(BOOT_IMAGE) $(BOOT_STAGE2) ::boot/loader.bin
+#	@mmd -i $(BOOT_IMAGE) ::boot
+	@mcopy -i $(BOOT_IMAGE) $(BOOT_STAGE2) ::loader.bin
 
 clean:
 	@rm -f $(BOOT_STAGE1) $(BOOT_STAGE2)

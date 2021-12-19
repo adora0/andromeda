@@ -2,7 +2,7 @@ include ./make.config
 
 CPPFLAGS:=$(CPPFLAGS)
 ASFLAGS:=$(ASFLAGS)
-LDFLAGS:=$(LDFLAGS) --oformat=binary
+LDFLAGS:=$(LDFLAGS)
 
 OBJS=$(patsubst %, $(OBJDIR)/%.o, $(BOOT_STAGE1_SRC))
 

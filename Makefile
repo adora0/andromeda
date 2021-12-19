@@ -79,15 +79,15 @@ $(COMPONENTS):
 image: $(ARCH)-image
 
 i386-image: $(COMPONENTS)
-	@mcopy -i $(BOOT_IMAGE) $(KERNEL) ::boot/kernel.bin
+	@mcopy -i $(BOOT_IMAGE) $(KERNEL) ::kernel.bin
 
 qemu: image
 	@qemu-system-$(ARCH) \
-		-drive file=$(BOOT_IMAGE),format=raw,index=0,media=disk
+		-drive file=$(BOOT_IMAGE),bus=0,index=0,format=raw,if=floppy
 
 debug: image
 	@qemu-system-$(ARCH) \
-		-drive file=$(BOOT_IMAGE),format=raw,index=0,media=disk \
+		--drive file=$(BOOT_IMAGE),bus=0,index=0,format=raw,if=floppy \
 		-chardev socket,path=.gdb.socket,server=on,wait=off,id=gdb0 \
 		-gdb chardev:gdb0 \
 		-S & \
