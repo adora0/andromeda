@@ -1,6 +1,6 @@
 # AndromedaOS
 
-A project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader.
+A project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader, using predominantly C and Assembly.
 
 ## Features
 
