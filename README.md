@@ -1,109 +1,85 @@
-# Andromeda
+# AndromedaOS
 
-The Andromeda Operating System
+Project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader.
 
-## Overview
+## Features
 
-Andromeda is a project to build a Unix-like operating system with the following in mind:
+### CPU-based
 
-- Monolithic/modular C kernel with multitasking
-- Standalone with own bootloader
-- POSIX compliance and libc implementation
-- Lightweight scalability
+Supported kernel architectures:
 
-## Hardware support
+- [x] i386
+- [ ] x86_64
 
-- i386 or newer IA-32/amd64 CPU
-- PC-compatible BIOS firmware
+Supported bootloader architectures:
 
-## Build Environment
+- [x] i386 (BIOS)
+- [ ] i386 (EFI)
 
-### Prerequisites
+### Components
 
-*all:*
-- `sh`
-- `make`
+- [-] Terminal implementation
+    - [x] Basic kernel VGA output
+    - [ ] VESA driver
+    - [ ] Input handling
+- [-] libc implementation
+- [-] Bootloader
+    - [x] FAT12 bootloader to execute loader executable
+    - [ ] Kernel loader
 
-- Toolchain (see [Building the Toolchain](###Building-the-Toolchain))
-    - `<TARGET>-binutils`
-        - `<TARGET>-ar`
-        - `<TARGET>-as`
-        - `<TARGET>-ld`
-    - `<TARGET>-gcc`
-        - `<TARGET>-cpp`
-        - `<TARGET>-gcc`
+## Build Prerequisites
 
-*and either*:
-- `grub`
-    - `grub-file`
-    - `grub-mkrescue`
-- `libisoburn`
-    - `xorriso`
+- POSIX shell
+- GNU make
+- *(Optional)* Existing GNU binutils and GCC cross-compiler toolchains
 
-*or*:
-- `mtools`
+OS-specific:
 
-Currently supported targets:
+- Arch Linux
+    - `base-devel`
 
-- `i386-elf`
-- `i486-elf`
-- `i586-elf`
-- `i686-elf`
+Run with target architecture `TARGET` and cross-compiler toolchain prefix `PREFIX` if applicable:
 
-### Building the Toolchain
+`./configure.sh --target=TARGET --prefix=PREFIX`
 
-Requires:
+*Note: `PREFIX` must be writable by the current user if the toolchain is not installed.*
 
-- `curl`
-- `tar`
-- `gcc`
+If you do not have an existing toolchain installed for the target architecture, run:
 
-*(Optional)* Set the installation directory:
+`./tools/build_toolchain.sh`
 
-`$ ./tools/set_prefix.sh <PREFIX>`
+## Building
 
-*(Optional)* Set the target architecture:
+Build bootable disk image (kernel, libraries and bootloader):
 
-`$ ./tools/set_target.sh <TARGET>`
+`make`
 
-Build the toolchain:
+## Testing
 
-`$ ./tools/build_toolchain.sh`
+Prerequisites:
 
-### Building
+- `qemu`
 
-`$ make image` *(Uses bootloader)*
+OS-specific:
 
-`$ make kernel-image` *(Uses GRUB)*
+- Arch Linux with non-x86_64 targets:
+    - `qemu-arch-extra`
 
-### Testing
+Boot the image in a virtual machine and build if not already built:
 
-*Requires `qemu-system-i386` or `qemu-system-x86_64`*
+`make test`
 
-`$ make qemu` *(Uses bootloader)*
+## Debugging
 
-`$ make qemu-kernel` *(Uses GRUB)*
+Prerequisites:
 
-### Debugging
+- `gdb`
+- *See [Testing](#Testing)*
 
-*Requires QEMU and `gdb`*
+Boot and debug the image in a virtual machine, and build if not already built:
 
-`$ make debug` *(Uses bootloader)*
-
-`$ make debug-kernel` *(Uses GRUB)*
+`make debug`
 
 ## License
 
-Released under the GPLv3 license. See `NOTICE` and `COPYING` for details.
-
-## Documentation
-
-Documentation is authored in English and refers to frequently used acronyms in hardware and software architecture and not all acronyms/abbreviations may be cited.
-
-### Index
-
-- [Roadmap](doc/roadmap.md)
-- [Known Issues](doc/issues.md)
-- [Design](doc/design.md)
-- [Source Structure](doc/source.md)
-- [Reference](doc/reference.md)
+GNU GPL version 3: see [`NOTICE`](NOTICE) and [`LICENSE`](LICENSE) for details.
