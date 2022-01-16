@@ -19,9 +19,12 @@ $(foreach obj, $(filter %.o, \
 	$(ARCH_LOADER_SRC:.S=.o) \
 ), $(OBJDIR)/$(ARCHDIR)/$(obj))
 
-# Binaries built into image
-BOOT_BIN		:= $(OBJDIR)/boot.bin
-LOADER_BIN		:= $(OBJDIR)/loader.bin
+# Track source includes for assembled objects
+ARCH_INCLUDES 	:= $(wildcard $(ARCH_INCLUDEDIR)/*.S)
+
+# Binaries
+BOOT_BIN		:= $(OBJDIR)/$(ARCHDIR)/boot.bin
+LOADER_BIN		:= $(OBJDIR)/$(ARCHDIR)/loader.bin
 
 # Architecture-specific targets
 ARCH_TARGETS 	:= $(BOOT)
@@ -29,7 +32,7 @@ ARCH_TARGETS 	:= $(BOOT)
 # Image file paths (max. 11 bytes for FAT12)
 # Referenced in assembly source
 LOADER_PATH		:= loader.bin
-KERNEL_PATH		:= kernel.bin
+KERNEL_PATH		:= kernel.elf
 
 ## Disk configuration
 BOOT_FAT_ENTRY_SIZE	:= 32

@@ -2,7 +2,8 @@
 
 ARCHDIR := arch/$(ARCH)
 
-INCLUDEDIR	:= $(CURDIR)/include
+INCLUDEDIR		:= $(CURDIR)/include
+ARCH_INCLUDEDIR	:= $(ARCHDIR)/include
 OBJDIR		:= $(BUILDDIR)/boot
 
 # Architecture-specific configuration
@@ -21,11 +22,15 @@ $(foreach obj, $(filter %.o, \
 	$(SRC:.S=.o) \
 ), $(OBJDIR)/$(obj))
 
+# Track source includes for assembled objects
+INCLUDES 	:= \
+$(ARCH_INCLUDES) \
+$(wildcard $(INCLUDEDIR)/*.S)
+
 # Flags
-CFLAGS		+= -ffreestanding -Wall -Wextra
-CPPFLAGS	+= -D__is_boot -I$(INCLUDEDIR) -I$(INSTALL_INCLUDEDIR)
+CFLAGS		+= -ffreestanding -Wall -Wextra -Wa,-I$(INCLUDEDIR),-I$(ARCH_INCLUDEDIR)
+CPPFLAGS	+= -D__is_boot -I$(INCLUDEDIR) -I$(ARCH_INCLUDEDIR)
 LDFLAGS		+=
-LIBS		+= -nostdlib -lgcc
 
 # Targets
 .PHONY: all env install
@@ -45,7 +50,7 @@ env:
 	@test $${INSTALL_BOOTDIR}
 
 # Assembly source
-$(OBJDIR)/%.o: %.S
+$(OBJDIR)/%.o: %.S $(INCLUDES)
 	@mkdir -p $(@D)
 	@echo "  AS		$(@F)"
 	@$(CC) -MD $(CFLAGS) $(CPPFLAGS) -o $@ -c $<

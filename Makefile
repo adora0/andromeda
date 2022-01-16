@@ -41,7 +41,7 @@ export ASFLAGS	+=
 export LDFLAGS	+=
 
 # Output files required by modules
-export KERNEL	:= $(BUILDDIR)/kernel.bin
+export KERNEL	:= $(BUILDDIR)/kernel.elf
 export BOOT		:= $(BUILDDIR)/boot.img
 
 # File extensions removed by clean target
