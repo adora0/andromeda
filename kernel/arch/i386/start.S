@@ -1,20 +1,20 @@
 /*
- * multiboot v1 header constants
+* Multiboot v1 header constants
 */
-	# align loaded modules on page boundaries
+	// align loaded modules on page boundaries
 	.set MB_ALIGN,		1<<0
-	# memory map
+	// memory map
 	.set MB_MEMINFO,	1<<1
-	# 'flag' field
+	// 'flag' field
 	.set MB_FLAGS,	  	MB_ALIGN | MB_MEMINFO
-	# kernel identifier
+	// kernel identifier
 	.set MB_MAGIC,	  	0x1BADB002
-	# checksum
+	// checksum
 	.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)
 
 /*
- * multiboot v1 header
- * marks the program as a kernel within the first 8KiB
+* Multiboot v1 header
+* Marks the program as a kernel within the first 8KiB
 */
 	.section .multiboot
 	.align 4
@@ -23,8 +23,8 @@
 	.long MB_CHECKSUM
 
 /*
- * Allocate 16KiB stack for initial thread
- * (16-byte aligned according to the System V ABI)
+* Allocate 16KiB stack for initial thread
+* (16-byte aligned according to the System V ABI)
 */
 	.section .bss
 	.align 16
@@ -33,8 +33,7 @@ stack_bottom:
 stack_top:
 
 /*
- * Kernel entry point
- * (Loaded from protected mode)
+* Kernel entry point
 */
 	.section .text
 	.global _start
@@ -42,9 +41,7 @@ stack_top:
 	.extern kmain
 _start:
 	/* initialize stack */
-	mov		$stack_top, %esp
-
-	/* TODO: enable A20, initialize GDT */
+	lea	stack_top, %esp
 
 	/* call global constructors */
 	call	_init
