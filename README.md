@@ -80,6 +80,12 @@ Boot and debug the image in a virtual machine, and build if not already built:
 
 `make debug`
 
+## Source Code
+
+Assembly source files are optimized for a tab width of 8 using hard tabs.
+
+C source files are optimized for a tab width of 4 using spaces.
+
 ## License
 
 GNU GPL version 3: see [`NOTICE`](NOTICE) and [`LICENSE`](LICENSE) for details.
