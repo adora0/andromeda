@@ -16,7 +16,7 @@
 	* BIOS parameter block relative address
 	*/
 	.set BPB_OFFSET,	0x03
-	.set BPB_SIZE,		33
+	.set BPB_SIZE,		26
 
 	/*
 	* Disk geometry relative address
@@ -28,20 +28,19 @@
 	* After the A20 gate has been enabled,
 	* addresses after 1MiB +64KiB are moved to a buffer
 	* before copying to the final destination due to BIOS limitations.
+	* NOTE: 4KiB above code, modify as required
 	*/
-	.set BUFFER_ADDR,	0xA000		// located 4KiB after loader start
+	.set BUFFER_ADDR,	0xAE00
 
 	/*
 	* Offset address to load the root directory and FAT
-	* Located after loader at 0x9000
 	*/
-	.set DATA_ADDR,		0xB000		// located 4KiB after load buffer
+	.set DATA_ADDR,		0xBE00
 
 	/*
 	* Offset address to load the kernel binary
-	* Located after buffer (must have sufficient space for the root directory)
 	*/
-	.set LOAD_ADDR,		0x100000	// located at 64KiB
+	.set LOAD_ADDR,		0x100000	// 1MiB
 
 /*
 * FAT12/16 BIOS parameter block (BPB)
@@ -72,53 +71,87 @@ disk_cluster:		.word	0
 disk_data_sector:	.word	0
 
 _start:
-	lea	msg_load, %si		// loader message
+	ljmp	$0, $1f			// reset code segment
+1:	/* Print loader message */
+	lea	msg_load, %si
 	call	puts
 
 	push	%ds			// save segment
 
 	/* Copy BIOS parameter block */
 	xor	%ax, %ax
-	mov	%ax, %es
-	lea	bpb_start, %di		// destination
-	mov	$BOOT_ADDR, %ax
-	mov	%ax, %ds		// source segment
+	mov	%ax, %es		// destination segment
+	lea	bpb_start, %di		// destination offset
+	mov	$(BOOT_ADDR >> 4), %ax
+	mov	%ax, %ds		// effective source segment
 	mov	$BPB_OFFSET, %si	// source offset
 	mov	$BPB_SIZE, %cx		// size
-rep	movsb				// copy byte from DS:SI to ES:DI
+rep	movsb				// copy from DS:SI to ES:DI
 
 	/* Copy disk geometry */
-	lea	disk_start, %di		// destination
+	xor	%ax, %ax
+	mov	%ax, %es		// destination segment
+	lea	disk_start, %di		// destination offset
+	mov	$(BOOT_ADDR >> 4), %ax
+	mov	%ax, %ds		// effective source segment
 	mov	$GEOMETRY_OFFSET, %si	// source offset
 	mov	$GEOMETRY_SIZE, %cx	// size
-rep	movsb				// copy byte from DS:SI to ES:DI
+rep	movsb				// copy from DS:SI to ES:DI
 
 	pop	%ds			// restore segment
 
 enable_a20:
 	/* Enable the A20 line to address memory above 1MiB +64KiB */
-	call	4f
+	call	3f
 	
 	call	enable_a20_bios
-	jc	1f
-	call	4f
+	jc	1f			// next method
+	call	3f
 
 1:	call	enable_a20_8042
-	call	4f
+	call	3f
 
 2:	call	enable_a20_fast
-	jc	err_a20
-	call	4f
+	jc	err_a20			// all methods failed
+	call	3f	
 
-3:	jmp	err_a20			// all methods failed
-
-4:	/* Check */
+3:	/* Check */
 	call	check_a20
 	jnc	a20_enabled		// continue if enabled
 	ret
 
 a20_enabled:
-	/* Read the kernel into memory */
+	/*
+	* Read kernel into memory
+	*/
+
+	/* Read root directory */
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear destination segment
+	mov 	$DATA_ADDR, %di		// set destination offset
+	call 	load_root		// read
+	jc 	err_disk
+	movw 	%bx, disk_data_sector	// store first data sector
+
+	/* Find kernel in root directory at ES:DI */
+	xor	%dx, %dx		// clear filename segment
+	lea 	filename, %si		// set filename offset
+	call 	find_file		// find
+	jc 	err_no_file
+	movw 	%bx, disk_cluster	// store first cluster
+
+	/* Load the FAT at ES:DI in order to find the required clusters */
+	call 	load_fat
+
+	/* Read file clusters */
+	// mov 	%es, %dx		// segment of FAT
+	// mov 	%di, %si		// offset of FAT
+	// xor 	%ax, %ax
+	// mov 	%ax, %es		// destination segment
+	// mov 	$LOAD_ADDR, %di		// destination offset
+	// movw 	disk_cluster, %ax	// first cluster
+	// call	load_file		// read
+	// jmp 	err_disk
 
 	/* Load the Global Descriptor Table (GDT) */
 
@@ -135,7 +168,13 @@ _end:
 	jmp 1b
 
 /*
-* Log messages
+* Kernel filename
+* 11 chars with no null termination
+*/
+filename:		.ascii  "KERNEL  ELF"
+
+/*
+* Messages
 */
 
 	.macro err str
@@ -144,22 +183,17 @@ _end:
 	jmp	_end
 	.endm
 
-err_a20:		err msg_err_a20
+msg_load:		.asciz "Loading...\n\r"
 msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
+msg_err_disk:		.asciz "Read error\n\r"
+msg_err_no_file:	.asciz "Kernel not found\n\r"
+err_a20:		err msg_err_a20
+err_disk:		err msg_err_disk
+err_no_file:		err msg_err_no_file
 
 /*
 * Includes
 */
 	.include "vga.S"
 	.include "a20.S"
-
-/*
-* Messages
-*/
-msg_load:		.asciz "Loading...\n\r"
-
-/*
-* Kernel filename
-* 11 chars with no null termination
-*/
-filename:		.ascii  "KERNEL  ELF"
+	.include "disk.S"

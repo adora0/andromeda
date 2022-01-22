@@ -1,3 +1,9 @@
+# Track source files for all objects
+ARCH_SRC := \
+	vga.S \
+	disk.S \
+	a20.S
+
 # Bootstrap source files
 # Boot stage loads the kernel loader
 ARCH_BOOT_SRC := \
@@ -18,9 +24,6 @@ LOADER_OBJS := \
 $(foreach obj, $(filter %.o, \
 	$(ARCH_LOADER_SRC:.S=.o) \
 ), $(OBJDIR)/$(ARCHDIR)/$(obj))
-
-# Track source includes for assembled objects
-ARCH_INCLUDES 	:= $(wildcard $(ARCH_INCLUDEDIR)/*.S)
 
 # Binaries
 BOOT_BIN		:= $(OBJDIR)/$(ARCHDIR)/boot.bin

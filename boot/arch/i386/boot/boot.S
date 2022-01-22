@@ -12,20 +12,24 @@
 	* the A20 gate is enabled in the kernel loader
 	*/
 
-	/* Offset address of >1KiB stack top before boot code */
-	.set STACK_TOP,		0x7000
+	/*
+	* 4KiB stack before boot code
+	* Conventional memory space 0x500-0x7BFF
+	*/
+	.set STACK_TOP,		0x1500
+	.set STACK_BASE,	0x0500
 
 	/*
 	* Offset address to load the root directory and FAT
-	* Located after boot code at 0x7C00
+	* Conventional memory space 0x7E00-0x7FFFF
+	* 4KiB space before load address
 	*/
-	.set DATA_ADDR,		0x8000
+	.set DATA_ADDR,		0x7E00
 
 	/*
 	* Offset address to load the loader binary
-	* Located after buffer (must have sufficient space for the root directory)
 	*/
-	.set LOAD_ADDR,		0x9000
+	.set LOAD_ADDR,		0x9E00
 
 _start:
 	/*
@@ -86,7 +90,8 @@ main:
 	/* Initialize stack */
 	xor	%ax, %ax
 	movw	%ax, %ss		// reset stack segment
-	movw	$STACK_TOP, %sp		// set stack top
+	mov	$STACK_TOP, %sp		// set stack top
+	mov	$STACK_BASE, %bp	// set stack base
 
 	movb	%dl, drive_number	// save drive number set by BIOS
 	
@@ -105,7 +110,10 @@ main:
 	/*
 	* Find kernel loader in root directory at ES:DI
 	*/
-	xor	%dx, %dx		// clear filename segment
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear root directory segment
+	mov	$DATA_ADDR, %di		// set root directory offset
+	mov 	%ax, %dx		// clear filename segment
 	lea 	filename, %si		// set filename offset
 	call 	find_file		// find
 	jc 	err_no_file
@@ -114,16 +122,19 @@ main:
 	/*
 	* Load the FAT at ES:DI in order to find the required clusters
 	*/
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear FAT segment
+	mov	$DATA_ADDR, %di		// set FAT offset
 	call 	load_fat
 
 	/*
 	* Read file clusters
 	*/
-	mov 	%es, %dx		// segment of FAT
-	mov 	%di, %si		// offset of FAT
 	xor 	%ax, %ax
-	mov 	%ax, %es		// destination segment
-	mov 	$LOAD_ADDR, %di		// destination offset
+	mov 	%ax, %dx		// clear FAT segment
+	mov	$DATA_ADDR, %si		// set FAT offset
+	mov 	%ax, %es		// clear destination segment
+	mov 	$LOAD_ADDR, %di		// set destination offset
 	movw 	disk_cluster, %ax	// first cluster
 	call	load_file		// read
 	jc 	err_disk
@@ -148,7 +159,7 @@ _end:
 filename:		.ascii  "LOADER  BIN"
 
 /*
-* Log messages
+* Messages
 */
 
 	.macro err str
@@ -157,10 +168,10 @@ filename:		.ascii  "LOADER  BIN"
 	jmp	_end
 	.endm
 
-err_disk:		err msg_err_disk
-err_no_file:		err msg_err_no_file
 msg_err_disk:		.asciz "Read error\n\r"
 msg_err_no_file:	.asciz "Loader not found\n\r"
+err_disk:		err msg_err_disk
+err_no_file:		err msg_err_no_file
 
 /*
 * Includes

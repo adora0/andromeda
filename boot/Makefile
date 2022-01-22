@@ -22,14 +22,9 @@ $(foreach obj, $(filter %.o, \
 	$(SRC:.S=.o) \
 ), $(OBJDIR)/$(obj))
 
-# Track source includes for assembled objects
-INCLUDES 	:= \
-$(ARCH_INCLUDES) \
-$(wildcard $(INCLUDEDIR)/*.S)
-
 # Flags
-CFLAGS		+= -ffreestanding -Wall -Wextra -Wa,-I$(INCLUDEDIR),-I$(ARCH_INCLUDEDIR)
-CPPFLAGS	+= -D__is_boot -I$(INCLUDEDIR) -I$(ARCH_INCLUDEDIR)
+CFLAGS		+= -ffreestanding -Wall -Wextra -Wa,-I$(ARCHDIR)
+CPPFLAGS	+= -D__is_boot -I$(INCLUDEDIR)
 LDFLAGS		+=
 
 # Targets
@@ -50,7 +45,7 @@ env:
 	@test $${INSTALL_BOOTDIR}
 
 # Assembly source
-$(OBJDIR)/%.o: %.S $(INCLUDES)
+$(OBJDIR)/%.o: %.S $(SRC)
 	@mkdir -p $(@D)
 	@echo "  AS		$(@F)"
 	@$(CC) -MD $(CFLAGS) $(CPPFLAGS) -o $@ -c $<

@@ -11,7 +11,13 @@
 *		ES:DI updated to end of buffer
 */
 disk_read:
-	pusha
+	/* Save registers for return */
+	push	%ax
+	push	%bx
+	push	%cx
+	push	%dx
+	push	%si
+
 	mov	%cx, %si		// store number of sectors
 	mov	$3, %cx			// set counter to remaining attempts
 
@@ -67,12 +73,12 @@ disk_read:
 2:	/*
 	* Increment buffer pointer by 1 sector
 	*/
-	movw	bpb_sector_size, %ax
-	add	%di, %ax		// add sector size to offset
-	shr	$4, %ax			// get effective segment (offset >> 4)
-	mov	%es, %di
-	add	%ax, %di		// add segment
-	mov	%di, %es		// store in %es
+	addw	bpb_sector_size, %di	// add sector size to offset
+	shr	$4, %di			// get effective segment (offset >> 4)
+	mov	%es, %ax
+	add	%ax, %di		// add initial segment
+	mov	%di, %es		// store in ES
+	xor	%di, %di		// clear offset
 
 	pop	%ax			// restore LBA
 	pop	%cx			// restore counter
@@ -80,13 +86,17 @@ disk_read:
 	dec	%si			// decrement remaining sectors
 	jz	4f			// exit if complete
 
-	xor	%di, %di		// reset buffer offset
 	inc	%ax			// increment LBA
 	jmp	1b			// read next sector
 
 3:	stc				// set carry flag on failure
 
-4:	popa
+4:	/* Restore registers for return */
+	pop    %si
+        pop    %dx
+        pop    %cx
+        pop    %bx
+        pop    %ax
 	ret
 
 /*
@@ -143,22 +153,18 @@ find_file:
 	movw	bpb_root_entries, %cx	// initialize counter
 
 1:	/* Compare filenames */
-	push	%ds		// save registers
+	pusha			// save registers
+	push	%ds
 	push	%es
-	push 	%si
-	push 	%di
-	push	%cx
 	
 	mov	%dx, %ds	// filename segment
 	
 	mov	$11, %cx	// 11-byte filename length
 rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 	
-	pop	%cx		// restore registers
-	pop 	%di
-	pop 	%si
-	pop	%es
+	pop	%es		// restore registers
 	pop	%ds
+	popa
 	
 	je	2f		// continue if match
 	add	$32, %di	// go to next entry if not matching
@@ -168,18 +174,18 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 	jmp 	3f
 
 2:	/* Store index of first cluster */
-	push	%ds		// save registers
-	push	%si
+	push	%ds
 	push	%di
+	push	%si
 
 	mov	%es, %ax
 	mov	%ax, %ds
 	add	$26, %di	// get cluster bytes 26-27 from entry
 	mov	%di, %si
-	lodsw			// read word from ds:si into ax
+	lodsw			// read word from DS:SI into ax
 	
-	pop	%di		// restore registers
-	pop	%si
+	pop	%si		// restore registers
+	pop	%di
 	pop	%ds
 
 	mov	%ax, %bx	// BX = cluster
@@ -245,40 +251,47 @@ load_file:
 	*/
 	call	disk_read
 	jc	4f
-	
+
 	/*
 	* Calculate next cluster;
 	* Each 12-bit cluster is not 16-bit aligned,
 	* so values must be adjusted to only read
 	* a single cluster when copying a word.
 	*
-	* If even cluster, mask the top 4 bits belonging to the next cluster 
-	* If odd cluster, shift the address down 4 bits to discard the bits used by the previous cluster
+	* If previous cluster was even, mask the top 4 bits belonging to the next cluster 
+	* If previous cluster was odd, shift the address down 4 bits to discard the bits used by the previous cluster
 	*/
 
 	pop	%ax			// restore current cluster
-	mov	%ax, %cx		// copy index
-	shr	$1, %cx			// divide by 2
-	add	%cx, %ax		// add to AX for (3/2) of current index
+	push	%ax			// save current cluster to check
 	push	%ds			// save segment
-	mov	%dx, %ds		// use segment of FAT
+	push	%si			// save offset
+	
+	mov	%ax, %bx		// copy index
+	shr	$1, %bx			// divide by 2
+	add	%bx, %ax		// add to AX for 3/2 of current index
+	add	%ax, %si		// add index to offset of FAT		
+	mov	%dx, %ds		// segment of FAT
 
 	/* Read cluster index from FAT */
 	lodsw				// read word from DS:SI into AX
-	
+
+	pop	%si			// restore offset
 	pop	%ds			// restore segment
-	test	$1, %al			// least significant bit
-	jz	2f			// even cluster if not set
+
+	pop	%bx			// get previous cluster
+	test	$1, %bx			// check least significant bit
+	jz	2f			// last cluster index was even
 
 	/* Odd cluster */
 	shr	$4, %ax			// get high twelve bits
+	jmp	3f
 
 2:	/* Even cluster */
 	and	$0x0F, %ah		// get low twelve bits
 
-3:	/* Check */
-	cmp	$0x0FF0, %ax		// exit on signature at end of file
-	jne	1b			// next cluster
+3:	cmp	$0x0FF8, %ax		// exit at end of chain
+	jl	1b			// next cluster if less than final identifier
 
 4:	popa
 	ret
