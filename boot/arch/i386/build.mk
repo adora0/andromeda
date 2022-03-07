@@ -1,17 +1,12 @@
-# Track source files for all objects
-ARCH_SRC := \
-	vga.S \
-	disk.S \
-	a20.S
-
 # Bootstrap source files
 # Boot stage loads the kernel loader
 ARCH_BOOT_SRC := \
-	boot/boot.S
+	boot/boot16.S
 
 # Kernel loader source files
 ARCH_LOADER_SRC := \
-	loader/loader.S
+	loader/load16.S \
+	loader/load32.c
 
 # Generate object paths (must include architecture directory path)
 # Add source extensions to %.o filter
@@ -23,6 +18,7 @@ $(foreach obj, $(filter %.o, \
 LOADER_OBJS := \
 $(foreach obj, $(filter %.o, \
 	$(ARCH_LOADER_SRC:.S=.o) \
+	$(ARCH_LOADER_SRC:.c=.o) \
 ), $(OBJDIR)/$(ARCHDIR)/$(obj))
 
 # Binaries
@@ -85,5 +81,9 @@ $(BOOT_BIN): $(BOOT_OBJS) $(ARCHDIR)/boot/linker.ld
 
 # Link kernel loader
 $(LOADER_BIN): $(LOADER_OBJS) $(ARCHDIR)/loader/linker.ld
-	@echo "  LD		$(@F)"
-	@$(LD) $(LDFLAGS) -T$(ARCHDIR)/loader/linker.ld -o $@ $(LOADER_OBJS)
+	@echo "  CC		$(@F)"
+	@$(CC) $(LDFLAGS) $(LIBS) -T$(ARCHDIR)/loader/linker.ld -o $@ $(LOADER_OBJS)
+
+# Dependencies
+-include $(BOOT_OBJS:.o=.d)
+-include $(LOADER_OBJS:.o=.d)

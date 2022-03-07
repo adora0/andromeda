@@ -1,4 +1,103 @@
+	/*
+	* Kernel loader
+	* Switch to protected mode to load kernel
+	*/	
+	
 	.code16
+
+	.section .text
+	.global _start
+
+	.extern load32
+
+_start:
+	ljmp	$0, $1f			// reset code segment
+
+1:	/* Print loader message */
+	lea	msg_load, %si
+	call	puts
+
+enable_a20:
+	/* Enable the A20 line to address memory above 1MiB +64KiB */
+	call	3f
+	
+	call	enable_a20_bios
+	jc	1f			// next method
+	call	3f
+
+1:	call	enable_a20_8042
+	call	3f
+
+2:	call	enable_a20_fast
+	jc	err_a20			// all methods failed
+	call	3f	
+
+3:	/* Check */
+	call	check_a20
+	jnc	a20_enabled		// continue if enabled
+	ret
+
+a20_enabled:
+	/* Switch to protected mode */
+	lgdt	gdt_info		// load GDT
+	cli
+	mov     %cr0, %eax
+        or      $1, %al
+        mov     %eax, %cr0		// set first bit in control register 0
+
+        jmp     . + 2			// prevent crash on 386/486
+
+
+	.code32
+
+
+	/* Load segment registers */
+	mov     $0x08, %ax		// select descriptor 1 (0b1000)
+        mov     %ax, %ds
+        mov     %ax, %es
+        mov     %ax, %fs
+        mov     %ax, %gs
+        mov     %ax, %ss
+
+	/* Call C loader */
+	call	load32
+
+/*
+* Halt execution
+*/
+_end:
+	cli
+1:	hlt
+	jmp 1b
+	
+
+	.code16
+
+
+/////////////
+// Functions
+/////////////
+
+
+/*
+* Output a null-terminated string in text mode
+*	in:	SI -> string
+*/
+puts:
+	pusha
+	
+1:	lodsb			// load character from SI into AL
+	or	%al, %al
+	jz	2f		// exit on null byte
+
+	mov	$0x0E, %ah	// teletype output
+	xor	%bx, %bx	// BH = 0 (page number), BL = 0 (foreground color)
+	int	$0x10
+	jmp	1b		// next
+2:	popa
+
+	ret
+
 
 /*
 * Check status of the A20 address line
@@ -50,6 +149,7 @@ check_a20:
 2:	pop	%ds
 	ret
 
+
 /*
 * Enable the A20 line via the BIOS (PS/2 and later specific models)
 *	out:	CF = 0 on success
@@ -90,6 +190,7 @@ enable_a20_bios:
 
 1:	stc			// set CF on failure
 2:	ret
+
 
 /*
 * Enable the A20 line via the 8042 keyboard controller
@@ -142,6 +243,7 @@ enable_a20_8042:
 3:	popf
 	ret
 
+
 /*
 * Enable the A20 line via the Fast A20 port (PS/2 and later)
 *	out:	CF = 0 if supported
@@ -164,3 +266,40 @@ enable_a20_fast:
 1:	popf
 	stc
 2:	ret
+
+
+/*
+* Global Descriptor Table
+* Flat 4GiB with no address translation
+*/
+gdt_info:
+        .word   gdt_end - gdt_start - 1	// last byte in table
+	.long	gdt_start		// start of table
+
+gdt_start:
+	/* Null descriptor */
+	.long	0
+	.long	0
+	/* Code descriptor */
+	.word	0xFFFF		// segment limit (bits 0-16)
+	.word	0		// base address (bits 0-16)
+	.byte	0		// base address (bits 16-23)
+	.byte	0b10010010	// type, privilege level, present flag
+	.byte	0b11001111	// segment limit (bits 16-19), attributes, granularity
+	.byte	0		// base address (bits 24-31)
+gdt_end:
+
+
+/*
+* Messages
+*/
+
+	.macro err str
+	leaw	\str, %si
+	call	puts
+	jmp	_end
+	.endm
+
+msg_load:		.asciz "Loading...\n\r"
+msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
+err_a20:		err msg_err_a20

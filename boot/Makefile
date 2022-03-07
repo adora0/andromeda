@@ -12,8 +12,8 @@ OBJDIR		:= $(BUILDDIR)/boot
 -include $(ARCHDIR)/build.mk
 
 # Source files
-SRC := \
-	$(ARCH_SRC:%=$(ARCHDIR)/%)
+# Architecture-specific source configured separately
+SRC := 
 
 # Generate object paths
 # Add source extensions to %.o filter
@@ -26,6 +26,7 @@ $(foreach obj, $(filter %.o, \
 CFLAGS		+= -ffreestanding -Wall -Wextra -Wa,-I$(ARCHDIR)
 CPPFLAGS	+= -D__is_boot -I$(INCLUDEDIR)
 LDFLAGS		+=
+LIBS		+= -nostdlib -lgcc
 
 # Targets
 .PHONY: all env install
@@ -45,9 +46,15 @@ env:
 	@test $${INSTALL_BOOTDIR}
 
 # Assembly source
-$(OBJDIR)/%.o: %.S $(SRC)
+$(OBJDIR)/%.o: %.S
 	@mkdir -p $(@D)
-	@echo "  AS		$(@F)"
+	@echo "  CC		$(@F)"
+	@$(CC) -MD $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
+
+# C source
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(@D)
+	@echo "  CC		$(@F)"
 	@$(CC) -MD $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
 
 install: env $(KERNEL) $(ARCH_TARGETS)

@@ -7,13 +7,13 @@ ARCHDIR := arch/$(ARCH)
 # Custom targets configured with ARCH_TARGETS
 -include $(ARCHDIR)/build.mk
 
+INCLUDEDIR	:= $(CURDIR)/include
+OBJDIR		:= $(BUILDDIR)/kernel
+
 # Source files
 SRC := \
 	$(ARCH_SRC:%=$(ARCHDIR)/%) \
 	main.c
-
-INCLUDEDIR	:= $(CURDIR)/include
-OBJDIR		:= $(BUILDDIR)/kernel
 
 # Generate object paths
 # Add source extensions to %.o filter
