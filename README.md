@@ -1,6 +1,8 @@
 # AndromedaOS
 
-A project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader, using predominantly C and Assembly.
+A project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader, using C and Assembly.
+
+*Disclaimer: The bootloader is unfinished and not yet at the stage of loading the kernel. The x86 kernel can currently be tested separately using QEMU with `build/kernel.elf`.*
 
 ## Features
 
