@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 ## Build configuration script
 
-## Environment files
+
+# Environment files
 sh_env=./.env
 make_env=./.env.mk
 
-## Default options
-## Can be overriden by arguments
+
+# Default options
+# Can be overriden by arguments
 TARGET=i386-elf
 PROJECT_NAME=andromeda
 BUILDDIR=$(realpath ./build)
 SYSROOT=${BUILDDIR}/sysroot
 PREFIX=/usr
 
+
 err() {
     ## $1: message, $2: exit code
     echo "$1" >&2
     exit $2
 }
+
 
 arg_err() {
     ## $OPTARG: argument value
@@ -27,6 +31,7 @@ arg_err() {
         err $"Invalid argument '${OPTARG}'" 1
     fi
 }
+
 
 get_long() {
     ## Retrieve argument of long option
@@ -42,6 +47,7 @@ get_long() {
         ref=${BASEARG##*=}
     fi
 }
+
 
 save_env() {
     ## Write variable to environment file
@@ -78,11 +84,13 @@ save_env() {
 
 }
 
+
 save_env_path() {
     ## Write variable contining file path to environment file
     ## $1: variable name
     EXPAND=1 save_env $@
 }
+
 
 usage() {
     local basename=$(basename "$0")
@@ -98,15 +106,18 @@ Build configuration script for the Andromeda Operating System.
 "
 }
 
+
 rm -f "$sh_env" "$make_env"
-## Process command line arguments
+
+# Process command line arguments
 optstr=':h-:'
 while getopts "${optstr}" OPT; do
     case ${OPT} in
         (-)
-            ## Process '--' argument prefix
+            # Process '--' argument prefix
             # Store complete argument for --<name>=<value> syntax
             BASEARG=${OPTARG}
+
             # Get option name from before the first '=' delimiter
             OPTARG=${BASEARG%%=*}
 
@@ -142,14 +153,14 @@ while getopts "${optstr}" OPT; do
     esac
 done
 
-## Get architecture string from target
+# Get architecture name from target
 if echo "${TARGET}" | grep -Eq 'i[[:digit:]]86'; then
     ARCH=i386
 else
     ARCH=$(echo "${TARGET}" | grep -Eo '^[[:alnum:]_]*')
 fi
 
-## Save environment variables
+# Save environment variables
 unset EXPAND
 save_env TARGET
 save_env ARCH

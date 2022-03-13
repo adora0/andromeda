@@ -1,12 +1,13 @@
 # Bootstrap source files
 # Boot stage loads the kernel loader
 ARCH_BOOT_SRC := \
-	boot/boot16.S
+	boot/boot.S
+
 
 # Kernel loader source files
 ARCH_LOADER_SRC := \
-	loader/load16.S \
-	loader/load32.c
+	loader/loader.S \
+
 
 # Generate object paths (must include architecture directory path)
 # Add source extensions to %.o filter
@@ -21,19 +22,23 @@ $(foreach obj, $(filter %.o, \
 	$(ARCH_LOADER_SRC:.c=.o) \
 ), $(OBJDIR)/$(ARCHDIR)/$(obj))
 
+
 # Binaries
 BOOT_BIN		:= $(OBJDIR)/$(ARCHDIR)/boot.bin
 LOADER_BIN		:= $(OBJDIR)/$(ARCHDIR)/loader.bin
 
+
 # Architecture-specific targets
 ARCH_TARGETS 	:= $(BOOT)
+
 
 # Image file paths (max. 11 bytes for FAT12)
 # Referenced in assembly source
 LOADER_PATH		:= loader.bin
 KERNEL_PATH		:= kernel.elf
 
-## Disk configuration
+
+# Disk configuration
 BOOT_FAT_ENTRY_SIZE	:= 32
 BOOT_SECTOR_SIZE    := 512
 BOOT_SECTORS        := 2880
@@ -45,6 +50,11 @@ BOOT_ROOT_ENTRIES   := $(shell echo \
     | bc)
 BOOT_FAT_SIZE       := 12
 BOOT_RESERVED       := 1
+
+
+
+### Targets
+
 
 # Build boot image
 $(BOOT): $(KERNEL) $(BOOT_BIN) $(LOADER_BIN)
@@ -74,15 +84,18 @@ $(BOOT): $(KERNEL) $(BOOT_BIN) $(LOADER_BIN)
 	@mcopy -i $(BOOT) $(LOADER_BIN) ::$(LOADER_PATH)
 	@mcopy -i $(BOOT) $(KERNEL) ::$(KERNEL_PATH)
 
+
 # Link bootstrap code
 $(BOOT_BIN): $(BOOT_OBJS) $(ARCHDIR)/boot/linker.ld
 	@echo "  LD		$(@F)"
 	@$(LD) $(LDFLAGS) -T$(ARCHDIR)/boot/linker.ld -o $@ $(BOOT_OBJS)
 
+
 # Link kernel loader
 $(LOADER_BIN): $(LOADER_OBJS) $(ARCHDIR)/loader/linker.ld
 	@echo "  CC		$(@F)"
 	@$(CC) $(LDFLAGS) $(LIBS) -T$(ARCHDIR)/loader/linker.ld -o $@ $(LOADER_OBJS)
+
 
 # Dependencies
 -include $(BOOT_OBJS:.o=.d)

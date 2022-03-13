@@ -17,6 +17,7 @@
 	* 4KiB stack before boot code
 	* Conventional memory space 0x500-0x7BFF
 	*/
+
 	.set STACK_TOP,		0x1500
 	.set STACK_BASE,	0x0500
 
@@ -25,26 +26,29 @@
 	* Conventional memory space 0x7E00-0x7FFFF
 	* 4KiB space before load address
 	*/
+
 	.set DATA_ADDR,		0x7E00
 
 	/*
 	* Offset address to load the loader binary
 	*/
+
 	.set LOAD_ADDR,		0x9E00
 
+
 _start:
-	/*
-	* E9 (..) 90 opcodes required by BIOS parameter block
-	* jmp short, nop
-	*/
+	/* E9 .. 90 opcodes (jmp short; nop) required by BIOS parameter block */
+
 	jmp	main
 	nop
 
 /*
 * FAT12/16 BIOS parameter block (BPB)
-* Parameters set by format tools
+* Parameters set by formatting tools
 */
+
 	. = _start + 0x03
+
 bpb_oem_id:		.space	8, 0	// OEM identifier (max. 8 bytes, space-padded)
 bpb_sector_size:	.word	0	// bytes per sector
 bpb_sectors_cluster:	.byte	0	// sectors per cluster
@@ -62,7 +66,9 @@ bpb_large_sectors:	.long	0	// number of 32-bit sectors
 /*
 * FAT12/16 Extended Boot Record (EBPB)
 */
+
 	. = _start + 0x024
+
 ebpb:
 ebpb_drive_num:		.byte	0	// BIOS drive number (int 0x13)
 ebpb_nt_flags:		.byte	0	// Windows NT flags (reserved)
@@ -73,9 +79,16 @@ ebpb_system_id:		.space	8, 0	// file system type representation (unused)
 
 
 /*
+* End of parameter block
+*/
+
+	. = _start + 0x03E
+
+
+/*
 * Disk geometry space
 */
-	. = _start + 0x03E
+
 drive_number:		.byte	0
 disk_cluster:		.word	0
 disk_data_sector:	.word	0
@@ -83,6 +96,7 @@ disk_data_sector:	.word	0
 /*
 * Entry point
 */
+
 main:
 	ljmp	$0, $1f		// reset code segment
 1:	cld			// clear direction flag for string operations
@@ -90,6 +104,7 @@ main:
 	
 
 	/* Initialize stack */
+
 	xor	%ax, %ax
 	movw	%ax, %ss		// reset stack segment
 	mov	$STACK_TOP, %sp		// set stack top
@@ -100,9 +115,8 @@ main:
 	sti			// restore interrupts
 	
 
-	/*
-	* Read root directory
-	*/
+	/* Read root directory */
+
 	xor 	%ax, %ax
 	mov 	%ax, %es		// clear destination segment
 	mov 	$DATA_ADDR, %di		// set destination offset
@@ -111,9 +125,8 @@ main:
 	movw 	%bx, disk_data_sector	// store first data sector
 
 
-	/*
-	* Find kernel loader in root directory at ES:DI
-	*/
+	/* Find kernel loader in root directory at ES:DI */
+
 	xor 	%ax, %ax
 	mov 	%ax, %es		// clear root directory segment
 	mov	$DATA_ADDR, %di		// set root directory offset
@@ -124,18 +137,16 @@ main:
 	movw 	%bx, disk_cluster	// store first cluster
 
 
-	/*
-	* Load the FAT at ES:DI in order to find the required clusters
-	*/
+	/* Load the FAT at location ES:DI */
+
 	xor 	%ax, %ax
 	mov 	%ax, %es		// clear FAT segment
 	mov	$DATA_ADDR, %di		// set FAT offset
 	call 	load_fat
 
 
-	/*
-	* Read file clusters
-	*/
+	/* Read file clusters */
+
 	xor 	%ax, %ax
 	mov 	%ax, %dx		// clear FAT segment
 	mov	$DATA_ADDR, %si		// set FAT offset
@@ -146,29 +157,31 @@ main:
 	jc 	err_disk
 
 
-	/*
-	* Execute the loader
-	*/
+	/* Execute the loader */
+
 	ljmp	$(LOAD_ADDR >> 4), $0	// jump and update segment
+
 
 /*
 * Halt execution
 */
+
 _end:
 	cli
 1:	hlt
 	jmp 1b
 
 
-/////////////
-// Functions
-/////////////
+/***************
+* Functions
+***************/
 
 
 /*
 * Output a null-terminated string in text mode
 *	in:	SI -> string
 */
+
 puts:
 	pusha
 
@@ -192,6 +205,7 @@ puts:
 *		ES:DI -> destination
 *	out:	data at ES:DI	
 */
+
 load_file:
 	pusha
 
@@ -201,6 +215,8 @@ load_file:
 	* Calculate LBA of cluster in ax
 	* LBA = (cluster - 2) * sectors per cluster + first data sector
 	*/
+
+
 	sub	$2, %ax				// cluster - 2
 	xor	%ch, %ch
 	movb	bpb_sectors_cluster, %cl
@@ -211,8 +227,10 @@ load_file:
 	* Read cluster
 	* AX = cluster LBA, CX = sectors per cluster, ES:DI -> destination
 	*/
+
 	call	disk_read
 	jc	4f
+
 
 	/*
 	* Calculate next cluster;
@@ -235,7 +253,9 @@ load_file:
 	add	%ax, %si		// add index to offset of FAT		
 	mov	%dx, %ds		// segment of FAT
 
+
 	/* Read cluster index from FAT */
+
 	lodsw				// read word from DS:SI into AX
 
 	pop	%si			// restore offset
@@ -245,17 +265,25 @@ load_file:
 	test	$1, %bx			// check least significant bit
 	jz	2f			// last cluster index was even
 
+
 	/* Odd cluster */
+
 	shr	$4, %ax			// get high twelve bits
 	jmp	3f
 
+
 2:	/* Even cluster */
+
 	and	$0x0F, %ah		// get low twelve bits
+
 
 3:	cmp	$0x0FF8, %ax		// exit at end of chain
 	jl	1b			// next cluster if less than final identifier
 
-4:	popa
+
+4:	/* End */
+
+	popa
 	ret
 
 
@@ -269,8 +297,10 @@ load_file:
 *		CF set on error after 3 retries
 *		ES:DI updated to end of buffer
 */
+
 disk_read:
 	/* Save registers for return */
+	
 	push	%ax
 	push	%bx
 	push	%cx
@@ -283,12 +313,14 @@ disk_read:
 1:	push	%cx			// store counter
 	push	%ax			// store LBA
 
+
 	/*
 	* LBA to CHS conversion
 	*	track = LBA / (sectors per track * number of heads)
 	*	head = (LBA / sectors per track) % sectors per track
 	*	sector = (LBA / sectors per track) + 1
 	*/
+
 	xor	%dx, %dx		// prepare DX:AX for operation
 	divw	bpb_sectors_track	// LBA / sectors per track
 	inc	%dl			// adjust for sector 0
@@ -302,6 +334,7 @@ disk_read:
 
 	clc				// clear carry flag
 
+
 	/*
 	* Int 0x13/AH=0x02: Disk - Read sectors into memory
 	*	in:	AH = 0x02
@@ -312,6 +345,7 @@ disk_read:
 	*		DL = drive number
 	*		ES:BX -> data buffer
 	*/
+
 	mov	$0x0201, %ax		// read 1 sector
 	movb	drive_number, %dl	// DL = drive number
 	mov 	%di, %bx		// BX = offset
@@ -329,9 +363,9 @@ disk_read:
 
 	jmp	3f			// fail
 
-2:	/*
-	* Increment buffer pointer by 1 sector
-	*/
+
+2:	/* Increment buffer pointer by 1 sector */
+
 	addw	bpb_sector_size, %di	// add sector size to offset
 	shr	$4, %di			// get effective segment (offset >> 4)
 	mov	%es, %ax
@@ -348,9 +382,12 @@ disk_read:
 	inc	%ax			// increment LBA
 	jmp	1b			// read next sector
 
+
 3:	stc				// set carry flag on failure
 
-4:	/* Restore registers for return */
+
+4:	/* End */
+
 	pop    %si
         pop    %dx
         pop    %cx
@@ -367,17 +404,21 @@ disk_read:
 *               BX = first data sector
 *		CF set on error
 */
+
 load_root:
 	/* Store size in cx */
+
 	mov	$32, %ax		// root entry size
 	mulw	bpb_root_entries	// * number of entries
 	divw	bpb_sector_size		// / sector size
 	mov	%ax, %cx		// number of sectors
 
+
 	/*
 	* Store location in ax
 	* CHS = LBA when head = 0 and track = 0
 	*/
+
 	xor	%ax, %ax
 	movb	bpb_fat_count, %al		// number of FATs
 	mulw	bpb_sectors_fat			// * sectors per FAT
@@ -385,17 +426,24 @@ load_root:
 	movw	%ax, %bx			// base of root directory
 	addw	%cx, %bx			// + size
 	
+
 	/* Save registers */
+
 	push	%es
 	push 	%di
 
+
 	/* Read root directory */
+
 	clc
 	call	disk_read		// read sectors
 
+
 	/* Restore registers */
+
 	pop	%di
 	pop 	%es
+
 
 	ret
 
@@ -411,9 +459,12 @@ load_root:
 
 find_file:
 	/* Load size of root directory */
+
 	movw	bpb_root_entries, %cx	// initialize counter
 
+
 1:	/* Compare filenames */
+
 	pusha			// save registers
 	push	%ds
 	push	%es
@@ -434,7 +485,9 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 	stc			// set carry flag if not found
 	jmp 	3f
 
+
 2:	/* Store index of first cluster */
+
 	push	%ds
 	push	%di
 	push	%si
@@ -451,47 +504,62 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 
 	mov	%ax, %bx	// BX = cluster
 
-3:	ret
+
+3:	/* End */
+
+	ret
 
 
 /*
-* Load file allocation tables
+* Load file allocation table
 *	in:	ES:DI -> buffer
 *
 *	out:	data in ES:DI
 *		CF set on error
 */
+
 load_fat:
 	/* Calculate size of FAT and store in cx */
+	
 	movw	bpb_sectors_fat, %ax	// sectors per FAT
 	mulb	bpb_fat_count		// * number of FATs
 	mov	%ax, %cx
 
+
 	/* Save location in ax */
+	
 	movw	bpb_reserved_sectors, %ax
 
+
 	/* Save registers */
+	
 	push	%es
 	push 	%di
 
+
 	/* Read FAT into buffer */
+	
 	clc
 	call	disk_read
 
+
 	/* Restore registers */
+	
 	pop	%di
 	pop 	%es
+
 
 	ret
 
 
-/////////////
+/**************/
 
 
 /*
 * Loader filename
 * 11 chars with no null termination
 */
+
 filename:		.ascii  "LOADER  BIN"
 
 
@@ -500,9 +568,11 @@ filename:		.ascii  "LOADER  BIN"
 */
 
 	.macro err str
+
 	leaw	\str, %si
 	call	puts
 	jmp	_end
+
 	.endm
 
 msg_err_disk:		.asciz "Read error\n\r"
@@ -514,6 +584,7 @@ err_no_file:		err msg_err_no_file
 /*
 * End of sector
 */
+
 signature:
 	. = _start + 0x1FE	// 512 bytes - signature length
 	.word 0xAA55		// boot signature

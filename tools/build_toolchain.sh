@@ -3,7 +3,8 @@
 
 envfile=./.env
 
-## URLs
+
+# URLs
 server="ftp://ftp.gnu.org"
 binutils_version="2.37"
 binutils_url="${server}/gnu/binutils/binutils-${binutils_version}.tar.gz"
@@ -17,27 +18,32 @@ gcc_out="gcc-${gcc_version}.tar.gz"
 gcc_outdir="gcc-${gcc_version}"
 gcc_builddir="${gcc_outdir}-build"
 
-## Get environment variables set by the configuration script
+
+# Get environment variables set by the configuration script
 test ! -e "${envfile}"  || . "${envfile}"
 test -n "${TARGET-}"    || exit
 test -n "${BUILDDIR-}"  || exit
 test -n "${PREFIX-}"    || exit
 
+
 mkdir -p "$BUILDDIR" "$PREFIX"
 
 (
-	cd "$BUILDDIR"	
+	cd "$BUILDDIR"
+
 	# Get binutils
 	curl -o "${binutils_out}" "${binutils_url}"
 	mkdir -p "${binutils_outdir}" "${binutils_builddir}"
 	tar -xzf "${binutils_out}"
 	(
 		cd "${binutils_builddir}"
+
         # Build
 		../${binutils_outdir}/configure --prefix="${PREFIX}" --target=${TARGET}
 		make
 		make install
 	)
+
 
 	# Get gcc
 	curl -o "${gcc_out}" "${gcc_url}"
@@ -45,6 +51,7 @@ mkdir -p "$BUILDDIR" "$PREFIX"
 	tar -xzf "${gcc_out}"
 	(
 		cd "${gcc_builddir}"
+
         # Build
 		../${gcc_outdir}/configure --prefix="${PREFIX}" --target=${TARGET}
         make all-gcc

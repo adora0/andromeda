@@ -1,6 +1,6 @@
 	/*
 	* Kernel loader
-	* Switch to protected mode to load kernel
+	* Switch to protected mode and load kernel
 	*/	
 	
 	.code16
@@ -8,37 +8,58 @@
 	.section .text
 	.global _start
 
-	.extern load32
 
 _start:
 	ljmp	$0, $1f			// reset code segment
 
 1:	/* Print loader message */
+
 	lea	msg_load, %si
 	call	puts
 
+
 enable_a20:
 	/* Enable the A20 line to address memory above 1MiB +64KiB */
+
 	call	3f
+
+	/* BIOS */
 	
 	call	enable_a20_bios
 	jc	1f			// next method
 	call	3f
 
-1:	call	enable_a20_8042
+
+1:	/* 8042 */
+
+	call	enable_a20_8042
 	call	3f
 
-2:	call	enable_a20_fast
+
+2:	/* Fast A20 */
+
+	call	enable_a20_fast
 	jc	err_a20			// all methods failed
 	call	3f	
 
+
 3:	/* Check */
+
 	call	check_a20
 	jnc	a20_enabled		// continue if enabled
+
 	ret
 
+
 a20_enabled:
+
+	/* TODO: Load kernel ELF */
+
+	jmp	a20_enabled
+
+
 	/* Switch to protected mode */
+
 	lgdt	gdt_info		// load GDT
 	cli
 	mov     %cr0, %eax
@@ -52,6 +73,7 @@ a20_enabled:
 
 
 	/* Load segment registers */
+
 	mov     $0x08, %ax		// select descriptor 1 (0b1000)
         mov     %ax, %ds
         mov     %ax, %es
@@ -59,12 +81,13 @@ a20_enabled:
         mov     %ax, %gs
         mov     %ax, %ss
 
-	/* Call C loader */
-	call	load32
+
+	/* TODO: Start kernel */
 
 /*
 * Halt execution
 */
+
 _end:
 	cli
 1:	hlt
@@ -74,15 +97,16 @@ _end:
 	.code16
 
 
-/////////////
-// Functions
-/////////////
+/***************
+* Functions
+***************/
 
 
 /*
 * Output a null-terminated string in text mode
 *	in:	SI -> string
 */
+
 puts:
 	pusha
 	
@@ -104,6 +128,7 @@ puts:
 *	out:	CF = 0 if enabled
 *		CF = 1 if disabled
 */
+
 check_a20:
 	push	%ds
 	pushf			// save flags to restore interrupts
@@ -118,10 +143,10 @@ check_a20:
 	mov	$0x0500, %di
 	mov	$0x0510, %si
 
-	mov	%es:(%di), %al	// read 0x0000:0x0500
+	mov	%es:(%di), %al		// read 0x0000:0x0500
 	push	%ax
 	
-	mov	%ds:(%si), %al	// read 0xFFFF:0x0510
+	mov	%ds:(%si), %al		// read 0xFFFF:0x0510
 	push	%ax
 
 	movb	$0x00, %es:(%di)	// clear 0x0000:0x0500
@@ -130,21 +155,27 @@ check_a20:
 	cmpb	$0xFF, %es:(%di)	// check 0x0000:0x0500
 	
 	pop	%ax
-	mov	%al, %ds:(%si)	// restore byte
+	mov	%al, %ds:(%si)		// restore byte
 
 	pop	%ax
-	mov	%al, %es:(%di)	// restore byte
+	mov	%al, %es:(%di)		// restore byte
+
 
 	jne	1f		// 0x0000:0x0500 was not set: memory does not wrap around
 
+
 	/* A20 disabled if memory wraps around */
+
 	popf			// restore flags
 	stc			// set CF if memory does wrap around
 	jmp	2f
 
+
 1:	/* A20 enabled if memory does not wrap around */
+
 	popf			// restore flags
 	clc			// clear CF if memory does not wrap around
+
 
 2:	pop	%ds
 	ret
@@ -155,19 +186,23 @@ check_a20:
 *	out:	CF = 0 on success
 *		CF = 1 on failure
 */
+
 enable_a20_bios:
 	/*
 	* Int 0x15/AH=0x2403: SYSTEM - later PS/2s - QUERY A20 GATE SUPPORT
 	*/
+
 	mov	$0x2403, %ax
 	int	$0x15
 	jc	2f		// not supported
 	cmp	$0, %ah
 	jnz	1f
 	
+
 	/*
 	* Int 0x15/AH=0x2402: SYSTEM - later PS/2s - GET A20 GATE STATUS
 	*/
+
 	mov	$0x2402, %ax
 	int	$0x15
 	jc	2f		// unable to get status
@@ -177,9 +212,11 @@ enable_a20_bios:
 	cmp	$1, %al
 	jz	2f		// already activated
 	
+
 	/*
 	* Int 0x15/AH=0x2401: SYSTEM - later PS/2s - ENABLE A20 GATE
 	*/
+
 	mov	$0x2401, %ax
 	int	$0x15
 	jc	2f		// failed to enable
@@ -188,6 +225,7 @@ enable_a20_bios:
 	
 	jmp	2f		// success
 
+
 1:	stc			// set CF on failure
 2:	ret
 
@@ -195,6 +233,7 @@ enable_a20_bios:
 /*
 * Enable the A20 line via the 8042 keyboard controller
 */
+
 enable_a20_8042:
 	pushf
 	cli
@@ -228,17 +267,22 @@ enable_a20_8042:
 	call	1f
 	jmp	3f
 
+
 1:	/* Wait for input buffer */
+
 	in	$0x64, %al
 	test	$2, %al		// bit 1 (input buffer status)
 	jnz	1b		// zero when ready
 	ret
 
+
 2:	/* Wait for output buffer */
+
 	in	$0x64, %al
 	test	$1, %al		// bit 0 (output buffer status)
 	jz	2b		// non-zero when ready
 	ret
+
 
 3:	popf
 	ret
@@ -249,6 +293,7 @@ enable_a20_8042:
 *	out:	CF = 0 if supported
 *		CF = 1 on failure
 */
+
 enable_a20_fast:
 	pushf
 	cli			// disable interrupts
@@ -263,30 +308,43 @@ enable_a20_fast:
 	clc
 	jmp	2f
 
+
 1:	popf
 	stc
+
 2:	ret
+
+
+/**************/
 
 
 /*
 * Global Descriptor Table
 * Flat 4GiB with no address translation
 */
+
 gdt_info:
+
         .word   gdt_end - gdt_start - 1	// last byte in table
 	.long	gdt_start		// start of table
 
 gdt_start:
+
 	/* Null descriptor */
+
 	.long	0
 	.long	0
+
+
 	/* Code descriptor */
+
 	.word	0xFFFF		// segment limit (bits 0-16)
 	.word	0		// base address (bits 0-16)
 	.byte	0		// base address (bits 16-23)
 	.byte	0b10010010	// type, privilege level, present flag
 	.byte	0b11001111	// segment limit (bits 16-19), attributes, granularity
 	.byte	0		// base address (bits 24-31)
+
 gdt_end:
 
 
@@ -295,9 +353,11 @@ gdt_end:
 */
 
 	.macro err str
+
 	leaw	\str, %si
 	call	puts
 	jmp	_end
+
 	.endm
 
 msg_load:		.asciz "Loading...\n\r"
