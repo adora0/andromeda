@@ -8,17 +8,56 @@
 	.section .text
 	.global _start
 
-	.global err_a20
+
+	.global exit
+	.global puts
 	.extern load_elf
+
+
+	/*
+	* Address of loaded boot sector and parameter offsets
+	*/
+
+	.set BOOT_ADDR,			0x7C00
+	.set BOOT_BPB_OFFSET,		0x03
+	.set BOOT_DISK_GEOM_OFFSET,	0x03E
 
 
 _start:
 	ljmp	$0, $1f			// reset code segment
 
+
 1:	/* Print loader message */
 
 	lea	msg_load, %si
+	push	%si
+
 	call	puts
+	
+	pop	%si
+
+
+	/* Load parameters from boot sector */
+
+	xor	%ax, %ax
+	mov	%ax, %ds
+	mov	%ax, %es
+
+	mov	$(BOOT_ADDR + BOOT_BPB_OFFSET), %si 		// source
+	lea	bpb_start, %di					// destination
+
+	lea	bpb_end, %cx
+	sub	%di, %cx		// size in bytes
+
+rep	movsb				// copy
+
+	mov	$(BOOT_ADDR + BOOT_DISK_GEOM_OFFSET), %si	// source
+	lea	disk_geom_start, %di				// destination
+
+	lea	disk_geom_end, %cx
+	sub	%di, %cx		// size in bytes
+
+rep	movsb				// copy
 
 
 enable_a20:
@@ -104,11 +143,21 @@ _end:
 
 
 /*
+* Exit loader
+*/
+
+exit:
+	jmp	_end
+
+
+/*
 * Output a null-terminated string in text mode
-*	in:	SI -> string
+*	in:	%sp+2 -> string
 */
 
 puts:
+	movw	2(%esp), %si
+	
 	pusha
 	
 1:	lodsb			// load character from SI into AL
@@ -363,6 +412,44 @@ enable_unreal:
 
 
 /*
+* FAT12/16 BIOS parameter block (BPB)
+* Parameters set in boot sector
+*/
+
+bpb_start:
+
+bpb_oem_id:		.space	8, 0	// OEM identifier (max. 8 bytes, space-padded)
+bpb_sector_size:	.word	0	// bytes per sector
+bpb_sectors_cluster:	.byte	0	// sectors per cluster
+bpb_reserved_sectors:	.word	0	// reserved (boot sector only)
+bpb_fat_count:		.byte	0	// number of file allocation tables (FATs)
+bpb_root_entries:	.word	0	// number of root directory entries (must span sectors)
+bpb_sector_count:	.word	0	// number of 16-bit locgical sectors
+bpb_media_type:		.byte	0	// media descriptor
+bpb_sectors_fat:	.word	0	// sectors per FAT
+bpb_sectors_track:	.word	0	// sectors per track
+bpb_head_count:		.word	0	// number of heads on storage media
+bpb_hidden_sectors:	.long	0	// number of hidden sectors
+bpb_large_sectors:	.long	0	// number of 32-bit sectors
+
+bpb_end:
+
+
+/*
+* Disk geometry
+* Parameters set in boot sector
+*/
+
+disk_geom_start:
+
+drive_number:		.byte	0
+disk_cluster:		.word	0
+disk_data_sector:	.word	0
+
+disk_geom_end:
+
+
+/*
 * Global Descriptor Table
 * Flat 4GiB with no address translation
 */
@@ -398,6 +485,7 @@ gdt_end:
 	.macro err str
 
 	leaw	\str, %si
+	push	%si
 	call	puts
 	jmp	_end
 
