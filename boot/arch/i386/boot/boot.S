@@ -193,6 +193,7 @@ puts:
 	xor	%bx, %bx	// BH = 0 (page number), BL = 0 (foreground color)
 	int	$0x10
 	jmp	1b		// next
+	
 2:	popa
 
 	ret
@@ -215,7 +216,6 @@ load_file:
 	* Calculate LBA of cluster in ax
 	* LBA = (cluster - 2) * sectors per cluster + first data sector
 	*/
-
 
 	sub	$2, %ax				// cluster - 2
 	xor	%ch, %ch
@@ -386,9 +386,7 @@ disk_read:
 3:	stc				// set carry flag on failure
 
 
-4:	/* End */
-
-	pop    %si
+4:	pop    %si
         pop    %dx
         pop    %cx
         pop    %bx
@@ -505,9 +503,7 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 	mov	%ax, %bx	// BX = cluster
 
 
-3:	/* End */
-
-	ret
+3:	ret
 
 
 /*

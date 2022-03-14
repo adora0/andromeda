@@ -8,6 +8,9 @@
 	.section .text
 	.global _start
 
+	.global err_a20
+	.extern load_elf
+
 
 _start:
 	ljmp	$0, $1f			// reset code segment
@@ -52,21 +55,19 @@ enable_a20:
 
 
 a20_enabled:
+	/* Switch to unreal mode */
 
-	/* TODO: Load kernel ELF */
+	call	enable_unreal
 
-	jmp	a20_enabled
+
+	/* Load kernel */
+
+	call	load_elf
 
 
 	/* Switch to protected mode */
-
-	lgdt	gdt_info		// load GDT
-	cli
-	mov     %cr0, %eax
-        or      $1, %al
-        mov     %eax, %cr0		// set first bit in control register 0
-
-        jmp     . + 2			// prevent crash on 386/486
+	
+	call	enable_protected
 
 
 	.code32
@@ -118,6 +119,7 @@ puts:
 	xor	%bx, %bx	// BH = 0 (page number), BL = 0 (foreground color)
 	int	$0x10
 	jmp	1b		// next
+	
 2:	popa
 
 	ret
@@ -315,6 +317,48 @@ enable_a20_fast:
 2:	ret
 
 
+/*
+* Enable protected mode
+*/
+
+enable_protected:
+	cli
+
+	lgdt	gdt_info	// load GDT register
+
+	mov     %cr0, %eax
+        or      $1, %al
+        mov     %eax, %cr0	// set first bit in control register 0
+
+        jmp     . + 2		// prevent crash on 386/486
+
+	ret
+
+
+/*
+* Enable unreal mode
+*/
+
+enable_unreal:
+	cli
+
+	push	%ds			// save real mode
+	
+	call	enable_protected	// protected mode
+
+	mov	$8, %bx			// select descriptor 1 (1000b)
+	mov	%bx, %ds
+
+	and	$0xFE, %al		// return to real mode
+	mov	%eax, %cr0		// toggle bit in cr0
+
+	pop	%ds			// restore real mode segment
+
+	sti
+
+	ret
+
+
 /**************/
 
 
@@ -329,7 +373,6 @@ gdt_info:
 	.long	gdt_start		// start of table
 
 gdt_start:
-
 	/* Null descriptor */
 
 	.long	0
