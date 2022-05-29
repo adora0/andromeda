@@ -17,7 +17,7 @@ OBJDIR		:= $(BUILDDIR)/kernel
 # Source files
 SRC := \
 	$(ARCH_SRC:%=$(ARCHDIR)/%) \
-	main.c
+	kmain.c
 
 
 # Generate object paths
@@ -83,7 +83,7 @@ $(OBJDIR)/%.o: %.c
 # Assembly source
 $(OBJDIR)/%.o: %.S
 	@mkdir -p $(@D)
-	@echo "  AS		$(@F)"
+	@echo "  CC		$(@F)"
 	@$(CC) -MD $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
 
 

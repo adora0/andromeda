@@ -8,6 +8,7 @@ _init:
 	push	%ebp
 	movl	%esp, %ebp
 
+
 	/* crtbegin.o .init added by gcc */
 
 
@@ -18,5 +19,6 @@ _init:
 _fini:
 	push	%ebp
 	movl	%esp, %ebp
+
 
 	/* crtbegin.o .fini added by gcc */

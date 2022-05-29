@@ -1,58 +1,63 @@
 	/*
-	* Kernel loader
-	* Switch to protected mode and load kernel
-	*/	
+	 * Kernel loader
+	 */	
 	
+
 	.code16
 
 	.section .text
 	.global _start
 
 
-	.global exit
-	.global puts
-	.extern load_elf
+	/*
+	 * Address of loaded boot sector and disk parameter offsets
+	 */
+
+	.set BOOT_ADDR,			0x7C00
+	.set BOOT_OFFSET_BPB,		0x03
+	.set BOOT_OFFSET_GEOM,	        0x3E
+	.set BOOT_OFFSET_SHARED,	0x43
 
 
 	/*
-	* Address of loaded boot sector and parameter offsets
-	*/
+	 * Address to load the root directory and FAT
+	 * Conventional memory space 0x7E00-0x7FFFF
+	 * 4KiB space before kernel buffer
+	 * Loader starts at 0x9E00
+	 */
 
-	.set BOOT_ADDR,			0x7C00
-	.set BOOT_BPB_OFFSET,		0x03
-	.set BOOT_DISK_GEOM_OFFSET,	0x03E
+	.set DATA_ADDR,			0xFE00
 
 
 _start:
-	ljmp	$0, $1f			// reset code segment
+	ljmp	$0, $1f		// reset code segment
 
+1:
 
-1:	/* Print loader message */
+	/* Print loader message */
 
 	lea	msg_load, %si
-	push	%si
-
-	call	puts
-	
-	pop	%si
+	call	*puts
 
 
-	/* Load parameters from boot sector */
+load_parameters:
 
-	xor	%ax, %ax
+	/* Load disk parameters from boot sector in memory */
+
+        xor	%ax, %ax                // reset segments
 	mov	%ax, %ds
 	mov	%ax, %es
 
-	mov	$(BOOT_ADDR + BOOT_BPB_OFFSET), %si 		// source
-	lea	bpb_start, %di					// destination
+	mov	$(BOOT_ADDR + BOOT_OFFSET_BPB), %si 	// source
+	lea	bpb_start, %di				// destination
 
 	lea	bpb_end, %cx
 	sub	%di, %cx		// size in bytes
 
 rep	movsb				// copy
 
-	mov	$(BOOT_ADDR + BOOT_DISK_GEOM_OFFSET), %si	// source
-	lea	disk_geom_start, %di				// destination
+	mov	$(BOOT_ADDR + BOOT_OFFSET_GEOM), %si	// source
+	lea	disk_geom_start, %di			// destination
 
 	lea	disk_geom_end, %cx
 	sub	%di, %cx		// size in bytes
@@ -61,80 +66,199 @@ rep	movsb				// copy
 
 
 enable_a20:
+
 	/* Enable the A20 line to address memory above 1MiB +64KiB */
 
-	call	3f
-
-	/* BIOS */
-	
-	call	enable_a20_bios
-	jc	1f			// next method
-	call	3f
-
-
-1:	/* 8042 */
-
-	call	enable_a20_8042
-	call	3f
-
-
-2:	/* Fast A20 */
-
-	call	enable_a20_fast
-	jc	err_a20			// all methods failed
-	call	3f	
-
-
-3:	/* Check */
-
 	call	check_a20
-	jnc	a20_enabled		// continue if enabled
+	jnc	enable_unreal		// skip if A20 already enabled
+
+
+enable_a20_bios:
+
+	/* Enable via BIOS */
+
+	/* Int 0x15/AH=0x2403: SYSTEM - later PS/2s - QUERY A20 GATE SUPPORT */
+
+	mov	$0x2403, %ax
+	int	$0x15
+	jc	enable_a20_8042		// not supported
+	cmp	$0, %ah
+	jnz	1f
+	
+
+	/* Int 0x15/AH=0x2402: SYSTEM - later PS/2s - GET A20 GATE STATUS */
+
+	mov	$0x2402, %ax
+	int	$0x15
+	jc	enable_a20_8042		// failed: unable to get status
+	cmp	$0, %ah
+	jnz	1f
+	
+	cmp	$1, %al
+	jz	1f			// already activated
+	
+
+	/* Int 0x15/AH=0x2401: SYSTEM - later PS/2s - ENABLE A20 GATE */
+
+	mov	$0x2401, %ax
+	int	$0x15
+
+	jc	enable_a20_8042		// failed
+
+	cmp	$0, %ah
+	jnz	enable_a20_8042		// failed
+
+
+1:	call	check_a20		// success: check
+
+	jnc	enable_unreal
+
+
+enable_a20_8042:
+
+	/* Enable via 8042 keyboard controller */
+
+	pushf
+	cli
+
+	call	wait_8042_in
+	mov	$0xAD, %al	// disable keyboard
+	out	%al, $0x64	// send command
+
+	call	wait_8042_in
+	mov	$0xD0, %al	// read input
+	out	%al, $0x64	// send command
+	
+	call	wait_8042_out
+	in	$0x60, %al	// read input buffer from output port
+	push	%ax
+
+	call	wait_8042_in
+	mov	$0xD1, %al	// write to output
+	out	%al, $0x64	// send command
+
+	call	wait_8042_in
+	pop	%ax
+	
+	or	$2, %al		// enable bit 1 (A20)
+	out	%al, $0x60	// write to output port
+
+	call	wait_8042_in
+	mov	$0xAE, %al	// enable keyboard
+	out	%al, $0x64	// send command
+
+	jmp	check_a20_8042
+
+
+wait_8042_in:
+
+	/* Wait for input buffer */
+
+	in	$0x64, %al
+	test	$2, %al		// bit 1 (input buffer status)
+	jnz	wait_8042_in	// zero when ready
 
 	ret
 
 
-a20_enabled:
-	/* Switch to unreal mode */
+wait_8042_out:
 
-	call	enable_unreal
+	/* Wait for output buffer */
+
+	in	$0x64, %al
+	test	$1, %al		// bit 0 (output buffer status)
+	jz	wait_8042_out	// non-zero when ready
+
+	ret
 
 
-	/* Load kernel */
-
-	call	load_elf
-
-
-	/* Switch to protected mode */
+check_a20_8042:
 	
-	call	enable_protected
+	popf
+
+	call	check_a20
+
+	jnc	enable_unreal
 
 
-	.code32
+enable_a20_fast:
+
+	/* Enable A20 via the Fast A20 port (PS/2 and later) */
+
+	pushf
+	cli			// disable interrupts
+
+	in	$0x92, %al
+	test	$2, %al
+	jnz	a20_failed	// unsupported
+	or	$2, %al		// set bit 1 for Fast A20
+	and	$0xFE, %al	// do not write to bit 0
+	out	%al, $0x92	// write
+
+	call	check_a20	// success: check
+	
+	jnc	enable_unreal
 
 
-	/* Load segment registers */
+a20_failed:
+	
+	/* All A20 enable methods failed */
 
-	mov     $0x08, %ax		// select descriptor 1 (0b1000)
-        mov     %ax, %ds
-        mov     %ax, %es
-        mov     %ax, %fs
-        mov     %ax, %gs
-        mov     %ax, %ss
+	popf
+	jc	err_a20
 
 
-	/* TODO: Start kernel */
 
-/*
-* Halt execution
-*/
+enable_unreal:
+
+	/* Enable unreal mode */
+
+	pushf
+	cli
+
+	push	%ds			// save real mode segment
+	
+
+	lgdt	gdt_info		// load GDT register
+
+	mov     %cr0, %eax
+        or      $1, %al
+        mov     %eax, %cr0		// set first bit in cr0
+
+        jmp     . + 2			// prevent crash on 386/486
+
+
+	mov	$8, %bx			// select descriptor 1 (1000b)
+	mov	%bx, %ds
+
+
+	and	$0xFE, %al
+	mov	%eax, %cr0		// set real mode bit in cr0
+
+
+	pop	%ds			// restore real mode segment
+
+	popf
+
+
+	/* TODO:
+	 * Read root directory
+	 * Find first sector of kernel
+	 * Read FAT
+	 * Read and relocate ELF
+	 * Enable protected mode
+	 * Start kernel execution
+	 */
+
 
 _end:
+
+	/* Halt execution */
+
 	cli
 1:	hlt
 	jmp 1b
-	
 
-	.code16
 
 
 /***************
@@ -142,45 +266,44 @@ _end:
 ***************/
 
 
-/*
-* Exit loader
-*/
-
-exit:
-	jmp	_end
-
-
-/*
-* Output a null-terminated string in text mode
-*	in:	%sp+2 -> string
-*/
-
-puts:
-	movw	2(%esp), %si
+	/*
+	 * Define external shared symbol location
+	 */
 	
-	pusha
-	
-1:	lodsb			// load character from SI into AL
-	or	%al, %al
-	jz	2f		// exit on null byte
-
-	mov	$0x0E, %ah	// teletype output
-	xor	%bx, %bx	// BH = 0 (page number), BL = 0 (foreground color)
-	int	$0x10
-	jmp	1b		// next
-	
-2:	popa
-
-	ret
+	.macro m_shared name, offset
+	.set \name, BOOT_ADDR + BOOT_OFFSET_SHARED + \offset
+	.endm
 
 
 /*
-* Check status of the A20 address line
-*	out:	CF = 0 if enabled
-*		CF = 1 if disabled
-*/
+ * Output a null-terminated string in text mode
+ *	in:	SI -> string
+ */
+
+m_shared	puts, 0
+
+
+/*
+ * Read sectors from disk
+ *	in:	AX = LBA
+ *		CX = number of sectors
+ *		ES:DI -> buffer
+ *
+ *	out:	data at ES:DI
+ *		CF set on error after 3 retries
+ *		ES:DI updated to end of buffer
+ */
+
+m_shared	read_sectors, 8
+
+
+/*
+ * Check the status of the A20 line
+ *	out:	CF set if disabled
+ */
 
 check_a20:
+
 	push	%ds
 	pushf			// save flags to restore interrupts
 	cli			// clear interrupts
@@ -218,192 +341,14 @@ check_a20:
 	/* A20 disabled if memory wraps around */
 
 	popf			// restore flags
-	stc			// set CF if memory does wrap around
-	jmp	2f
+	stc			// fail
+
+	ret
 
 
 1:	/* A20 enabled if memory does not wrap around */
 
 	popf			// restore flags
-	clc			// clear CF if memory does not wrap around
-
-
-2:	pop	%ds
-	ret
-
-
-/*
-* Enable the A20 line via the BIOS (PS/2 and later specific models)
-*	out:	CF = 0 on success
-*		CF = 1 on failure
-*/
-
-enable_a20_bios:
-	/*
-	* Int 0x15/AH=0x2403: SYSTEM - later PS/2s - QUERY A20 GATE SUPPORT
-	*/
-
-	mov	$0x2403, %ax
-	int	$0x15
-	jc	2f		// not supported
-	cmp	$0, %ah
-	jnz	1f
-	
-
-	/*
-	* Int 0x15/AH=0x2402: SYSTEM - later PS/2s - GET A20 GATE STATUS
-	*/
-
-	mov	$0x2402, %ax
-	int	$0x15
-	jc	2f		// unable to get status
-	cmp	$0, %ah
-	jnz	1f
-	
-	cmp	$1, %al
-	jz	2f		// already activated
-	
-
-	/*
-	* Int 0x15/AH=0x2401: SYSTEM - later PS/2s - ENABLE A20 GATE
-	*/
-
-	mov	$0x2401, %ax
-	int	$0x15
-	jc	2f		// failed to enable
-	cmp	$0, %ah
-	jnz	1f
-	
-	jmp	2f		// success
-
-
-1:	stc			// set CF on failure
-2:	ret
-
-
-/*
-* Enable the A20 line via the 8042 keyboard controller
-*/
-
-enable_a20_8042:
-	pushf
-	cli
-
-	call	1f		// wait for input buffer
-	mov	$0xAD, %al	// disable keyboard
-	out	%al, $0x64	// send command
-
-	call	1f		// wait for input buffer
-	mov	$0xD0, %al	// read input
-	out	%al, $0x64	// send command
-	
-	call	2f		// wait for output buffer
-	in	$0x60, %al	// read input buffer from output port
-	push	%ax
-
-	call	1f		// wait for input buffer
-	mov	$0xD1, %al	// write to output
-	out	%al, $0x64	// send command
-
-	call	1f		// wait for input buffer
-	pop	%ax
-	
-	or	$2, %al		// enable bit 1 (A20)
-	out	%al, $0x60	// write to output port
-
-	call	1f		// wait for input buffer
-	mov	$0xAE, %al	// enable keyboard
-	out	%al, $0x64	// send command
-
-	call	1f
-	jmp	3f
-
-
-1:	/* Wait for input buffer */
-
-	in	$0x64, %al
-	test	$2, %al		// bit 1 (input buffer status)
-	jnz	1b		// zero when ready
-	ret
-
-
-2:	/* Wait for output buffer */
-
-	in	$0x64, %al
-	test	$1, %al		// bit 0 (output buffer status)
-	jz	2b		// non-zero when ready
-	ret
-
-
-3:	popf
-	ret
-
-
-/*
-* Enable the A20 line via the Fast A20 port (PS/2 and later)
-*	out:	CF = 0 if supported
-*		CF = 1 on failure
-*/
-
-enable_a20_fast:
-	pushf
-	cli			// disable interrupts
-
-	in	$0x92, %al
-	test	$2, %al
-	jnz	1f		// unsupported
-	or	$2, %al		// set bit 1 for Fast A20
-	and	$0xFE, %al	// do not write to bit 0
-	out	%al, $0x92	// write
-
-	clc
-	jmp	2f
-
-
-1:	popf
-	stc
-
-2:	ret
-
-
-/*
-* Enable protected mode
-*/
-
-enable_protected:
-	cli
-
-	lgdt	gdt_info	// load GDT register
-
-	mov     %cr0, %eax
-        or      $1, %al
-        mov     %eax, %cr0	// set first bit in control register 0
-
-        jmp     . + 2		// prevent crash on 386/486
-
-	ret
-
-
-/*
-* Enable unreal mode
-*/
-
-enable_unreal:
-	cli
-
-	push	%ds			// save real mode
-	
-	call	enable_protected	// protected mode
-
-	mov	$8, %bx			// select descriptor 1 (1000b)
-	mov	%bx, %ds
-
-	and	$0xFE, %al		// return to real mode
-	mov	%eax, %cr0		// toggle bit in cr0
-
-	pop	%ds			// restore real mode segment
-
-	sti
 
 	ret
 
@@ -411,10 +356,11 @@ enable_unreal:
 /**************/
 
 
+
 /*
-* FAT12/16 BIOS parameter block (BPB)
-* Parameters set in boot sector
-*/
+ * FAT12/16 BIOS parameter block (BPB)
+ * Parameters set in boot sector
+ */
 
 bpb_start:
 
@@ -436,9 +382,9 @@ bpb_end:
 
 
 /*
-* Disk geometry
-* Parameters set in boot sector
-*/
+ * Disk geometry
+ * Parameters set in boot sector
+ */
 
 disk_geom_start:
 
@@ -479,18 +425,23 @@ gdt_end:
 
 
 /*
-* Messages
-*/
+ * Kernel filename
+ * 11 bytes with no null termination
+ */
 
-	.macro err str
+filename:		.ascii  "KERNEL  ELF"
 
+
+/* Messages */
+
+	.macro m_err str
 	leaw	\str, %si
-	push	%si
-	call	puts
+	call	*puts
 	jmp	_end
-
 	.endm
 
 msg_load:		.asciz "Loading...\n\r"
 msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
-err_a20:		err msg_err_a20
+msg_err_disk:		.asciz "Disk read error\n\r"
+err_a20:		m_err msg_err_a20
+err_disk:		m_err msg_err_disk

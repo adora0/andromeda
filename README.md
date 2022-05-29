@@ -33,12 +33,14 @@ Supported bootloader architectures:
 
 - POSIX shell
 - GNU make
+- `bc`
+- `mtools`
 - *(Optional)* Existing GNU binutils and GCC cross-compiler toolchains
 
 OS-specific:
 
 - Arch Linux
-    - `base-devel`
+    - `bc` `base-devel` `mtools`
 
 Run with target architecture `TARGET` and cross-compiler toolchain prefix `PREFIX` if applicable:
 
@@ -48,7 +50,7 @@ Run with target architecture `TARGET` and cross-compiler toolchain prefix `PREFI
 
 If you do not have an existing toolchain installed for the target architecture, run:
 
-`./tools/build_toolchain.sh`
+`./tools/instal-toolchain.sh`
 
 ## Building
 
@@ -60,12 +62,12 @@ Build bootable disk image (kernel, libraries and bootloader):
 
 Prerequisites:
 
-- `qemu`
+- QEMU
 
 OS-specific:
 
-- Arch Linux with non-x86_64 targets:
-    - `qemu-arch-extra`
+- Arch Linux with non-x86_64 TARGET:
+    - `qemu-base` `qemu-ui-gtk` `qemu-system-TARGET`
 
 Boot the image in a virtual machine and build if not already built:
 
