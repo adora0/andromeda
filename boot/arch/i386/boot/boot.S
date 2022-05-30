@@ -167,7 +167,7 @@ read_root:
 	/* Read */
 
 	clc
-	call	disk_read		// read sectors
+	call	read_sectors		// read sectors
 
 
 	/* Restore registers */
@@ -245,9 +245,9 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 	movw 	%bx, disk_cluster	// store first cluster
 
 
-load_fat:
+read_fat:
 
-	/* Load the FAT into location ES:DI */
+	/* Read the FAT into location ES:DI */
 
 	xor 	%ax, %ax
 	mov 	%ax, %es		// clear FAT segment
@@ -275,7 +275,7 @@ load_fat:
 	/* Read FAT into buffer */
 	
 	clc
-	call	disk_read
+	call	read_sectors
 
 
 	/* Restore registers */
@@ -319,7 +319,7 @@ read_file:
 	* AX = cluster LBA, CX = sectors per cluster, ES:DI -> destination
 	*/
 
-	call	disk_read
+	call	read_sectors
 	jc	4f
 
 
@@ -434,15 +434,14 @@ puts:
  *		ES:DI updated to end of buffer
  */
 
-disk_read:
-
-	/* Save registers for return */
+read_sectors:
 	
 	push	%ax
 	push	%bx
 	push	%cx
 	push	%dx
 	push	%si
+
 
 	mov	%cx, %si		// store number of sectors
 	mov	$3, %cx			// set counter to remaining attempts

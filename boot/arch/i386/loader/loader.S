@@ -16,7 +16,6 @@
 	.set BOOT_ADDR,			0x7C00
 	.set BOOT_OFFSET_BPB,		0x03
 	.set BOOT_OFFSET_GEOM,	        0x3E
-	.set BOOT_OFFSET_SHARED,	0x43
 
 
 	/*
@@ -42,7 +41,7 @@ _start:
 
 load_parameters:
 
-	/* Load disk parameters from boot sector in memory */
+	/* Load disk parameters from boot sector loaded into memory */
 
         xor	%ax, %ax                // reset segments
 	mov	%ax, %ds
@@ -70,7 +69,7 @@ enable_a20:
 	/* Enable the A20 line to address memory above 1MiB +64KiB */
 
 	call	check_a20
-	jnc	enable_unreal		// skip if A20 already enabled
+	jnc	a20_enabled		// skip if A20 already enabled
 
 
 enable_a20_bios:
@@ -83,16 +82,16 @@ enable_a20_bios:
 	int	$0x15
 	jc	enable_a20_8042		// not supported
 	cmp	$0, %ah
-	jnz	1f
+	jz	enable_a20_8042		// not supported
 	
 
 	/* Int 0x15/AH=0x2402: SYSTEM - later PS/2s - GET A20 GATE STATUS */
 
 	mov	$0x2402, %ax
 	int	$0x15
-	jc	enable_a20_8042		// failed: unable to get status
+	jc	enable_a20_8042		// unable to get status
 	cmp	$0, %ah
-	jnz	1f
+	jnz	enable_a20_8042		// unable to get status
 	
 	cmp	$1, %al
 	jz	1f			// already activated
@@ -109,9 +108,8 @@ enable_a20_bios:
 	jnz	enable_a20_8042		// failed
 
 
-1:	call	check_a20		// success: check
-
-	jnc	enable_unreal
+1:	call	check_a20		// success - check
+	jnc	a20_enabled
 
 
 enable_a20_8042:
@@ -177,8 +175,7 @@ check_a20_8042:
 	popf
 
 	call	check_a20
-
-	jnc	enable_unreal
+	jnc	a20_enabled
 
 
 enable_a20_fast:
@@ -195,9 +192,8 @@ enable_a20_fast:
 	and	$0xFE, %al	// do not write to bit 0
 	out	%al, $0x92	// write
 
-	call	check_a20	// success: check
-	
-	jnc	enable_unreal
+	call	check_a20	// success - check
+	jnc	a20_enabled
 
 
 a20_failed:
@@ -205,11 +201,11 @@ a20_failed:
 	/* All A20 enable methods failed */
 
 	popf
-	jc	err_a20
+
+	jmp	err_a20
 
 
-
-enable_unreal:
+a20_enabled:
 
 	/* Enable unreal mode */
 
@@ -241,14 +237,36 @@ enable_unreal:
 	popf
 
 
-	/* TODO:
-	 * Read root directory
-	 * Find first sector of kernel
-	 * Read FAT
-	 * Read and relocate ELF
-	 * Enable protected mode
-	 * Start kernel execution
-	 */
+	/* FIXME: Read root directory into location ES:DI */
+
+	xor	%ax, %ax
+	mov	%ax, %es		// clear segment
+	mov	$DATA_ADDR, %di		// set offset
+
+	call	read_root
+	jc	err_disk		// fail
+
+	
+	/* Find kernel and save index of first cluster in BX */
+
+	xor	%dx, %dx		// clear filename segment
+	lea	filename, %si		// set filename offset
+
+	call	find_file
+	jc	err_no_file		// fail
+
+
+	/* Read FAT into location ES:DI */
+
+	call	read_fat
+	jc	err_disk		// fail
+
+
+	/* TODO: Read and relocate ELF */
+
+	/* TODO: Enable protected mode */
+
+	/* TODO: Start kernel execution */
 
 
 _end:
@@ -295,9 +313,15 @@ puts:
 
 check_a20:
 
+	push	%ax
+	push	%es
 	push	%ds
-	pushf			// save flags to restore interrupts
+	push	%di
+	push	%si
+
+	pushf
 	cli			// clear interrupts
+
 
 	xor	%ax, %ax
 	mov	%ax, %es	// ES = 0
@@ -330,16 +354,25 @@ check_a20:
 
 
 	/* A20 disabled if memory wraps around */
-
-	popf			// restore flags
+	
+	popf
 	stc			// fail
+	jmp	2f
 
 	ret
 
 
 1:	/* A20 enabled if memory does not wrap around */
 
-	popf			// restore flags
+	popf
+	clc			// success
+
+
+2:	pop	%si
+	pop	%di
+	pop	%ds
+	pop	%es
+	pop	%ax
 
 	ret
 
@@ -355,7 +388,11 @@ check_a20:
 
 read_root:
 
-	/* Store size in cx */
+	push	%ax
+	push	%cx
+
+
+	/* Store size in CX */
 
 	mov	$32, %ax		// root entry size
 	mulw	bpb_root_entries	// * number of entries
@@ -364,9 +401,9 @@ read_root:
 
 
 	/*
-	* Store location in ax
-	* CHS = LBA when head = 0 and track = 0
-	*/
+	 * Store location in AX
+	 * CHS = LBA when head = 0 and track = 0
+	 */
 
 	xor	%ax, %ax
 	movb	bpb_fat_count, %al		// number of FATs
@@ -392,6 +429,10 @@ read_root:
 
 	pop	%di
 	pop 	%es
+
+
+	pop	%cx
+	pop	%ax
 
 
 	ret
@@ -468,14 +509,14 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 
 read_fat:
 
-	/* Calculate size of FAT and store in cx */
+	/* Calculate size of FAT and store in CX */
 	
 	movw	bpb_sectors_fat, %ax	// sectors per FAT
 	mulb	bpb_fat_count		// * number of FATs
 	mov	%ax, %cx
 
 
-	/* Save location in ax */
+	/* Save location in AX */
 	
 	movw	bpb_reserved_sectors, %ax
 
@@ -514,13 +555,12 @@ read_fat:
 
 read_sectors:
 
-	/* Save registers for return */
-	
 	push	%ax
 	push	%bx
 	push	%cx
 	push	%dx
 	push	%si
+
 
 	mov	%cx, %si		// store number of sectors
 	mov	$3, %cx			// set counter to remaining attempts
@@ -696,8 +736,10 @@ filename:		.ascii  "KERNEL  ELF"
 	jmp	_end
 	.endm
 
-msg_load:		.asciz "Loading...\n\r"
+msg_load:		.asciz "Starting Andromeda\n\r"
 msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
 msg_err_disk:		.asciz "Disk read error\n\r"
+msg_err_no_file:	.asciz "Kernel not found\n\r"
 err_a20:		m_err msg_err_a20
 err_disk:		m_err msg_err_disk
+err_no_file:		m_err msg_err_no_file

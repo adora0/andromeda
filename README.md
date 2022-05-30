@@ -1,4 +1,4 @@
-# AndromedOS
+# Andromeda
 
 A project to create a modular UNIX-like operating system including a kernel and
 minimal bootloader, written in C and Assembly.
@@ -38,8 +38,8 @@ Shell commands to be run as user are denoted by `$`.
 
 ### Prerequisites
 
-- POSIX shell
 - GNU make
+- `bash`
 - `bc`
 - `mtools`
 - *(Optional)* Existing GNU binutils and GCC cross-compiler toolchain
@@ -47,7 +47,7 @@ Shell commands to be run as user are denoted by `$`.
 ### Prerequisites (OS-specific)
 
 - Arch Linux
-    - `bc` `base-devel` `mtools`
+    - `base-devel` `bash` `bc` `mtools`
 
 If you already have a toolchain installed for the target architecture, run:
 
@@ -73,7 +73,7 @@ Build a bootable disk image (kernel, libraries and bootloader):
 ### Prerequisites (OS-specific)
 
 - Arch Linux
-    - `qemu-base` `qemu-ui-gtk` `qemu-system-TARGET`
+    - `qemu-base` `qemu-system-TARGET` `qemu-ui-gtk`
 
 ### Commands
 
