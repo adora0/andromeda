@@ -37,7 +37,7 @@ _start:
 	/* Print loader message */
 
 	lea	msg_load, %si
-	call	*puts
+	call	puts
 
 
 load_parameters:
@@ -257,7 +257,7 @@ _end:
 
 	cli
 1:	hlt
-	jmp 1b
+	jmp	1b
 
 
 
@@ -266,35 +266,26 @@ _end:
 ***************/
 
 
-	/*
-	 * Define external shared symbol location
-	 */
-	
-	.macro m_shared name, offset
-	.set \name, BOOT_ADDR + BOOT_OFFSET_SHARED + \offset
-	.endm
-
-
 /*
  * Output a null-terminated string in text mode
  *	in:	SI -> string
  */
 
-m_shared	puts, 0
+puts:
+	pusha
 
+1:	lodsb			// load character from SI into AL
+	or	%al, %al
+	jz	2f		// exit on null byte
 
-/*
- * Read sectors from disk
- *	in:	AX = LBA
- *		CX = number of sectors
- *		ES:DI -> buffer
- *
- *	out:	data at ES:DI
- *		CF set on error after 3 retries
- *		ES:DI updated to end of buffer
- */
+	mov	$0x0E, %ah	// teletype output
+	xor	%bx, %bx	// BH = 0 (page number), BL = 0 (foreground color)
+	int	$0x10
+	jmp	1b		// next
+	
+2:	popa
 
-m_shared	read_sectors, 8
+	ret
 
 
 /*
@@ -350,6 +341,271 @@ check_a20:
 
 	popf			// restore flags
 
+	ret
+
+
+/*
+ * Read FAT12/16 root directory
+ *	in:	ES:DI -> buffer
+ *
+ *	out:	data at ES:DI
+ *              BX = first data sector
+ *		CF set on error
+ */
+
+read_root:
+
+	/* Store size in cx */
+
+	mov	$32, %ax		// root entry size
+	mulw	bpb_root_entries	// * number of entries
+	divw	bpb_sector_size		// / sector size
+	mov	%ax, %cx		// number of sectors
+
+
+	/*
+	* Store location in ax
+	* CHS = LBA when head = 0 and track = 0
+	*/
+
+	xor	%ax, %ax
+	movb	bpb_fat_count, %al		// number of FATs
+	mulw	bpb_sectors_fat			// * sectors per FAT
+	addw	bpb_reserved_sectors, %ax	// + reserved sectors
+	movw	%ax, %bx			// base of root directory
+	addw	%cx, %bx			// + size
+	
+
+	/* Save registers */
+
+	push	%es
+	push 	%di
+
+
+	/* Read root directory */
+
+	clc
+	call	read_sectors		// read sectors
+
+
+	/* Restore registers */
+
+	pop	%di
+	pop 	%es
+
+
+	ret
+
+
+/*
+ * Find file in FAT12/16 root directory
+ *	in:	DX:SI -> filename
+ *		ES:DI -> root directory
+ *
+ *	out:	BX = index of first cluster
+ *		CF set if not found
+ */
+
+find_file:
+
+	/* Load size of root directory */
+
+	movw	bpb_root_entries, %cx	// initialize counter
+
+
+1:	/* Compare filenames */
+
+	pusha			// save registers
+	push	%ds
+	push	%es
+	
+	mov	%dx, %ds	// filename segment
+	
+	mov	$11, %cx	// 11-byte filename length
+rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
+	
+	pop	%es		// restore registers
+	pop	%ds
+	popa
+	
+	je	2f		// continue if match
+	add	$32, %di	// go to next entry if not matching
+	loop	1b
+
+	stc			// set carry flag if not found
+	jmp 	3f
+
+
+2:	/* Store index of first cluster */
+
+	push	%ds
+	push	%di
+	push	%si
+
+	mov	%es, %ax
+	mov	%ax, %ds
+	add	$26, %di	// get cluster bytes 26-27 from entry
+	mov	%di, %si
+	lodsw			// read word from DS:SI into ax
+	
+	pop	%si		// restore registers
+	pop	%di
+	pop	%ds
+
+	mov	%ax, %bx	// BX = cluster
+
+
+3:	ret
+
+
+/*
+ * Read file allocation table
+ *	in:	ES:DI -> buffer
+ *
+ *	out:	data in ES:DI
+ *		CF set on error
+ */
+
+read_fat:
+
+	/* Calculate size of FAT and store in cx */
+	
+	movw	bpb_sectors_fat, %ax	// sectors per FAT
+	mulb	bpb_fat_count		// * number of FATs
+	mov	%ax, %cx
+
+
+	/* Save location in ax */
+	
+	movw	bpb_reserved_sectors, %ax
+
+
+	/* Save registers */
+	
+	push	%es
+	push 	%di
+
+
+	/* Read FAT into buffer */
+	
+	clc
+	call	read_sectors
+
+
+	/* Restore registers */
+	
+	pop	%di
+	pop 	%es
+
+
+	ret
+
+
+/*
+ * Read sectors from disk
+ *	in:	AX = LBA
+ *		CX = number of sectors
+ *		ES:DI -> buffer
+ *
+ *	out:	data at ES:DI
+ *		CF set on error after 3 retries
+ *		ES:DI updated to end of buffer
+ */
+
+read_sectors:
+
+	/* Save registers for return */
+	
+	push	%ax
+	push	%bx
+	push	%cx
+	push	%dx
+	push	%si
+
+	mov	%cx, %si		// store number of sectors
+	mov	$3, %cx			// set counter to remaining attempts
+
+1:	push	%cx			// store counter
+	push	%ax			// store LBA
+
+
+	/*
+	 * LBA to CHS conversion
+	 *	track = LBA / (sectors per track * number of heads)
+	 *	head = (LBA / sectors per track) % sectors per track
+	 *	sector = (LBA / sectors per track) + 1
+	 */
+
+	xor	%dx, %dx		// prepare DX:AX for operation
+	divw	bpb_sectors_track	// LBA / sectors per track
+	inc	%dl			// adjust for sector 0
+	mov	%dl, %cl		// CL = sector (quotient)
+
+	xor	%dx, %dx		// prepare DX:AX for operation
+	divw	bpb_head_count		// / sectors per track
+	mov	%dl, %dh		// DH = head (quotient)
+
+	mov	%al, %ch		// CH = track (remainder)
+
+	clc				// clear carry flag
+
+
+	/*
+	 * Int 0x13/AH=0x02: Disk - Read sectors into memory
+	 *	in:	AH = 0x02
+	 *		AL = number of sectors to read
+	 *		CH = lower eight bits of cylinder number
+	 *		CL = sector number
+	 *		DH = head number
+	 *		DL = drive number
+	 *		ES:BX -> data buffer
+	 */
+
+	mov	$0x0201, %ax		// read 1 sector
+	movb	drive_number, %dl	// DL = drive number
+	mov 	%di, %bx		// BX = offset
+
+	int	$0x13
+
+	jnc	2f			// prepare for next read if success
+
+	xor	%ah, %ah		// reset disk on failure
+	int	$0x13
+
+	pop	%ax			// restore LBA
+	pop	%cx			// restore counter
+	loop	1b			// retry if attempts remaining
+
+	jmp	3f			// fail
+
+
+2:	/* Increment buffer pointer by 1 sector */
+
+	addw	bpb_sector_size, %di	// add sector size to offset
+	shr	$4, %di			// get effective segment (offset >> 4)
+	mov	%es, %ax
+	add	%ax, %di		// add initial segment
+	mov	%di, %es		// store in ES
+	xor	%di, %di		// clear offset
+
+	pop	%ax			// restore LBA
+	pop	%cx			// restore counter
+
+	dec	%si			// decrement remaining sectors
+	jz	4f			// exit if complete
+
+	inc	%ax			// increment LBA
+	jmp	1b			// read next sector
+
+
+3:	stc				// set carry flag on failure
+
+
+4:	pop    %si
+        pop    %dx
+        pop    %cx
+        pop    %bx
+        pop    %ax
 	ret
 
 
@@ -436,7 +692,7 @@ filename:		.ascii  "KERNEL  ELF"
 
 	.macro m_err str
 	leaw	\str, %si
-	call	*puts
+	call	puts
 	jmp	_end
 	.endm
 

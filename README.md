@@ -1,90 +1,103 @@
-# AndromedaOS
+# AndromedOS
 
-A project to create a small, modular UNIX-like operating system including a kernel and minimal bootloader, using C and Assembly.
-
-*Disclaimer: The bootloader is unfinished and not yet at the stage of loading the kernel. The x86 kernel can currently be tested separately using QEMU with `build/kernel.elf`.*
+A project to create a modular UNIX-like operating system including a kernel and
+minimal bootloader, written in C and Assembly.
 
 ## Features
 
-### CPU-based
+### CPU
 
 Supported kernel architectures:
 
 - [x] i386
-- [ ] x86_64
+- [-] x86_64
 
 Supported bootloader architectures:
 
 - [x] i386 (BIOS)
-- [ ] i386 (EFI)
+- [ ] x86_64 (EFI)
 
 ### Components
 
-- [-] Terminal implementation
-    - [x] Basic kernel VGA output
-    - [ ] VESA driver
-    - [ ] Input handling
+- Kernel
+    - [-] Terminal implementation
+        - [x] VGA text output
+        - [ ] VESA driver
+        - [ ] Input handler
 - [-] libc implementation
-- [-] Bootloader
-    - [x] FAT12 bootloader to execute loader executable
-    - [ ] Kernel loader
+- Bootloader
+    - [x] Boot sector to execute kernel loader
+        - [x] FAT12
+        - [ ] FAT16
+        - [ ] FAT32
+    - [-] Kernel loader
 
-## Build Prerequisites
+## Building
+
+Shell commands to be run as user are denoted by `$`.
+
+### Prerequisites
 
 - POSIX shell
 - GNU make
 - `bc`
 - `mtools`
-- *(Optional)* Existing GNU binutils and GCC cross-compiler toolchains
+- *(Optional)* Existing GNU binutils and GCC cross-compiler toolchain
 
-OS-specific:
+### Prerequisites (OS-specific)
 
 - Arch Linux
     - `bc` `base-devel` `mtools`
 
-Run with target architecture `TARGET` and cross-compiler toolchain prefix `PREFIX` if applicable:
+If you already have a toolchain installed for the target architecture, run:
 
-`./configure.sh --target=TARGET --prefix=PREFIX`
+`$ ./configure.sh --target=TARGET --prefix=PREFIX`
 
-*Note: `PREFIX` must be writable by the current user if the toolchain is not installed.*
+Otherwise if you do not already have a toolchain installed for the target
+architecture, run:
 
-If you do not have an existing toolchain installed for the target architecture, run:
+`$ ./tools/install-toolchain.sh`
 
-`./tools/instal-toolchain.sh`
+### Commands
 
-## Building
+Build a bootable disk image (kernel, libraries and bootloader):
 
-Build bootable disk image (kernel, libraries and bootloader):
-
-`make`
+`$ make`
 
 ## Testing
 
-Prerequisites:
+### Prerequisites
 
 - QEMU
 
-OS-specific:
+### Prerequisites (OS-specific)
 
-- Arch Linux with non-x86_64 TARGET:
+- Arch Linux
     - `qemu-base` `qemu-ui-gtk` `qemu-system-TARGET`
 
-Boot the image in a virtual machine and build if not already built:
+### Commands
 
-`make test`
+Build if not already built and boot the image in a virtual machine:
+
+`$ make test`
+
+*Disclaimer: As the bootloader is incomplete, build the components and run QEMU with
+`build/kernel.elf` as the specified kernel to test the kernel only.*
 
 ## Debugging
 
-Prerequisites:
+### Prerequisites
 
 - `gdb`
-- *See [Testing](#Testing)*
+- *[Testing — Prerequisites](##Testing###Prerequisites)*
 
-Boot and debug the image in a virtual machine, and build if not already built:
+### Commands
 
-`make debug`
+Build if not already built and debug the image in a virtual machine:
 
-## Source Code
+`$ make debug`
+
+## Source Formatting
 
 Assembly source files are optimized for a tab width of 8 using hard tabs.
 
@@ -92,4 +105,6 @@ C source files are optimized for a tab width of 4 using spaces.
 
 ## License
 
-GNU GPL version 3: see [`NOTICE`](NOTICE) and [`LICENSE`](LICENSE) for details.
+Released under the GNU GPLv3: see [`LICENSE`](LICENSE) for details.
+
+Copyright (c) Kriss Wiggins 2022

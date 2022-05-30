@@ -102,24 +102,11 @@ disk_cluster:		.word	0
 disk_data_sector:	.word	0
 
 
-	. = _start + 0x43
-
-/*
- * Symbols reused by kernel loader
- */
-
-boot_shared:
-
-	.word	puts
-	.word	read_sectors
-
-
 /*
  * Main procedure
  */
 
 main:
-
 	ljmp	$0, $1f		// reset code segment
 
 1:	cld			// clear direction flag for string operations
@@ -180,7 +167,7 @@ read_root:
 	/* Read */
 
 	clc
-	call	read_sectors
+	call	disk_read		// read sectors
 
 
 	/* Restore registers */
@@ -262,7 +249,6 @@ load_fat:
 
 	/* Load the FAT into location ES:DI */
 
-
 	xor 	%ax, %ax
 	mov 	%ax, %es		// clear FAT segment
 	mov	$DATA_ADDR, %di		// set FAT offset
@@ -289,7 +275,7 @@ load_fat:
 	/* Read FAT into buffer */
 	
 	clc
-	call	read_sectors
+	call	disk_read
 
 
 	/* Restore registers */
@@ -333,7 +319,7 @@ read_file:
 	* AX = cluster LBA, CX = sectors per cluster, ES:DI -> destination
 	*/
 
-	call	read_sectors
+	call	disk_read
 	jc	4f
 
 
@@ -400,14 +386,13 @@ start_loader:
 	ljmp	$(LOAD_ADDR >> 4), $0	// jump and update segment
 
 
-/*
- * Halt execution
- */
-
 _end:
+
+	/* Halt execution */
+
 	cli
 1:	hlt
-	jmp 1b
+	jmp	1b
 
 
 
@@ -449,7 +434,7 @@ puts:
  *		ES:DI updated to end of buffer
  */
 
-read_sectors:
+disk_read:
 
 	/* Save registers for return */
 	
@@ -563,9 +548,11 @@ filename:		.ascii  "LOADER  BIN"
  */
 
 	.macro m_err str
+
 	leaw	\str, %si
 	call	puts
 	jmp	_end
+
 	.endm
 
 msg_err_disk:		.asciz "Disk read error\r\n"
