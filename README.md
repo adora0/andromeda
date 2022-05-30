@@ -89,7 +89,7 @@ Build if not already built and boot the image in a virtual machine:
 ### Prerequisites
 
 - `gdb`
-- *[Testing — Prerequisites](#prerequisites-1)*
+- *[Testing - Prerequisites](#prerequisites-1)*
 
 ### Commands
 
