@@ -181,7 +181,7 @@ read_root:
 	movw 	%bx, disk_data_sector	// store first data sector
 
 
-find_loader:
+find_file:
 
 	/* Find kernel loader in root directory at location ES:DI */
 

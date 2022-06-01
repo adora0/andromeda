@@ -20,12 +20,11 @@
 
 	/*
 	 * Address to load the root directory and FAT
-	 * Conventional memory space 0x7E00-0x7FFFF
-	 * 4KiB space before kernel buffer
+	 * 4KiB above loader
 	 * Loader starts at 0x9E00
 	 */
 
-	.set DATA_ADDR,			0xFE00
+	.set DATA_ADDR,			0xAE00
 
 
 _start:
@@ -237,28 +236,165 @@ a20_enabled:
 	popf
 
 
-	/* FIXME: Read root directory into location ES:DI */
+read_root:
+
+	/* Read root directory */
+
+
+	/* Set destination */
+
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear segment
+	mov 	$DATA_ADDR, %di		// set offset
+
+
+	/* Store size in CX */
+
+	mov	$32, %ax		// root entry size
+	mulw	bpb_root_entries	// * number of entries
+	divw	bpb_sector_size		// / sector size
+	mov	%ax, %cx		// number of sectors
+
+
+	/*
+	 * Store location in AX
+	 * CHS = LBA when head = 0 and track = 0
+	 */
 
 	xor	%ax, %ax
-	mov	%ax, %es		// clear segment
-	mov	$DATA_ADDR, %di		// set offset
-
-	call	read_root
-	jc	err_disk		// fail
-
+	movb	bpb_fat_count, %al		// number of FATs
+	mulw	bpb_sectors_fat			// * sectors per FAT
+	addw	bpb_reserved_sectors, %ax	// + reserved sectors
+	movw	%ax, %bx			// base of root directory
+	addw	%cx, %bx			// + size
 	
-	/* Find kernel and save index of first cluster in BX */
 
-	xor	%dx, %dx		// clear filename segment
-	lea	filename, %si		// set filename offset
+	/* Save registers */
 
-	call	find_file
-	jc	err_no_file		// fail
+	push	%es
+	push 	%di
 
 
-	/* Read FAT into location ES:DI */
+	/* Read */
 
-	call	read_fat
+	clc
+	call	read_sectors		// read sectors
+
+
+	/* Restore registers */
+
+	pop	%di
+	pop 	%es
+
+
+	jc 	err_disk		// fail
+
+	movw 	%bx, disk_data_sector	// store first data sector
+
+
+find_file:
+
+	/* Find kernel loader in root directory at location ES:DI */
+
+
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear root directory segment
+	mov	$DATA_ADDR, %di		// set root directory offset
+	mov 	%ax, %dx		// clear filename segment
+	lea 	filename, %si		// set filename offset
+
+
+	/* Get size of root directory */
+
+	movw	bpb_root_entries, %cx	// initialize counter
+
+
+1:	/* Compare filenames */
+
+	pusha			// save registers
+	push	%ds
+	push	%es
+	
+	mov	%dx, %ds	// filename segment
+	
+	mov	$11, %cx	// 11-byte filename length
+rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
+	
+	pop	%es		// restore registers
+	pop	%ds
+	popa
+	
+	je	2f		// continue if match
+	add	$32, %di	// go to next entry if not matching
+	loop	1b
+
+	stc			// set carry flag if not found
+	jmp 	3f
+
+
+2:	/* Store index of first cluster */
+
+	push	%ds
+	push	%di
+	push	%si
+
+	mov	%es, %ax
+	mov	%ax, %ds
+	add	$26, %di	// get cluster bytes 26-27 from entry
+	mov	%di, %si
+	lodsw			// read word from DS:SI into ax
+	
+	pop	%si		// restore registers
+	pop	%di
+	pop	%ds
+
+	mov	%ax, %bx	// BX = cluster
+
+
+3:	jc 	err_no_file		// fail
+
+	movw 	%bx, disk_cluster	// store first cluster
+
+
+read_fat:
+
+	/* Read the FAT into location ES:DI */
+
+	xor 	%ax, %ax
+	mov 	%ax, %es		// clear FAT segment
+	mov	$DATA_ADDR, %di		// set FAT offset
+
+
+	/* Calculate size of FAT and store in cx */
+	
+	movw	bpb_sectors_fat, %ax	// sectors per FAT
+	mulb	bpb_fat_count		// * number of FATs
+	mov	%ax, %cx
+
+
+	/* Save location in ax */
+	
+	movw	bpb_reserved_sectors, %ax
+
+
+	/* Save registers */
+	
+	push	%es
+	push 	%di
+
+
+	/* Read FAT into buffer */
+	
+	clc
+	call	read_sectors
+
+
+	/* Restore registers */
+	
+	pop	%di
+	pop 	%es
+
+
 	jc	err_disk		// fail
 
 
@@ -373,171 +509,6 @@ check_a20:
 	pop	%ds
 	pop	%es
 	pop	%ax
-
-	ret
-
-
-/*
- * Read FAT12/16 root directory
- *	in:	ES:DI -> buffer
- *
- *	out:	data at ES:DI
- *              BX = first data sector
- *		CF set on error
- */
-
-read_root:
-
-	push	%ax
-	push	%cx
-
-
-	/* Store size in CX */
-
-	mov	$32, %ax		// root entry size
-	mulw	bpb_root_entries	// * number of entries
-	divw	bpb_sector_size		// / sector size
-	mov	%ax, %cx		// number of sectors
-
-
-	/*
-	 * Store location in AX
-	 * CHS = LBA when head = 0 and track = 0
-	 */
-
-	xor	%ax, %ax
-	movb	bpb_fat_count, %al		// number of FATs
-	mulw	bpb_sectors_fat			// * sectors per FAT
-	addw	bpb_reserved_sectors, %ax	// + reserved sectors
-	movw	%ax, %bx			// base of root directory
-	addw	%cx, %bx			// + size
-	
-
-	/* Save registers */
-
-	push	%es
-	push 	%di
-
-
-	/* Read root directory */
-
-	clc
-	call	read_sectors		// read sectors
-
-
-	/* Restore registers */
-
-	pop	%di
-	pop 	%es
-
-
-	pop	%cx
-	pop	%ax
-
-
-	ret
-
-
-/*
- * Find file in FAT12/16 root directory
- *	in:	DX:SI -> filename
- *		ES:DI -> root directory
- *
- *	out:	BX = index of first cluster
- *		CF set if not found
- */
-
-find_file:
-
-	/* Load size of root directory */
-
-	movw	bpb_root_entries, %cx	// initialize counter
-
-
-1:	/* Compare filenames */
-
-	pusha			// save registers
-	push	%ds
-	push	%es
-	
-	mov	%dx, %ds	// filename segment
-	
-	mov	$11, %cx	// 11-byte filename length
-rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
-	
-	pop	%es		// restore registers
-	pop	%ds
-	popa
-	
-	je	2f		// continue if match
-	add	$32, %di	// go to next entry if not matching
-	loop	1b
-
-	stc			// set carry flag if not found
-	jmp 	3f
-
-
-2:	/* Store index of first cluster */
-
-	push	%ds
-	push	%di
-	push	%si
-
-	mov	%es, %ax
-	mov	%ax, %ds
-	add	$26, %di	// get cluster bytes 26-27 from entry
-	mov	%di, %si
-	lodsw			// read word from DS:SI into ax
-	
-	pop	%si		// restore registers
-	pop	%di
-	pop	%ds
-
-	mov	%ax, %bx	// BX = cluster
-
-
-3:	ret
-
-
-/*
- * Read file allocation table
- *	in:	ES:DI -> buffer
- *
- *	out:	data in ES:DI
- *		CF set on error
- */
-
-read_fat:
-
-	/* Calculate size of FAT and store in CX */
-	
-	movw	bpb_sectors_fat, %ax	// sectors per FAT
-	mulb	bpb_fat_count		// * number of FATs
-	mov	%ax, %cx
-
-
-	/* Save location in AX */
-	
-	movw	bpb_reserved_sectors, %ax
-
-
-	/* Save registers */
-	
-	push	%es
-	push 	%di
-
-
-	/* Read FAT into buffer */
-	
-	clc
-	call	read_sectors
-
-
-	/* Restore registers */
-	
-	pop	%di
-	pop 	%es
-
 
 	ret
 
