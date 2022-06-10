@@ -425,20 +425,47 @@ load_failed:
 
 	/* Failed to load kernel */
 
+	cmp	$-1, %ax
+	je	load_failed_multiboot
+
+	cmp	$-2, %ax
+	je	load_failed_elf
+
 	call	switch_real
 
 
 	.code16
 
 
-	cmp	$-1, %ax
-	je	err_multiboot
-
-	cmp	$-2, %ax
-	je	err_elf
-
 	jmp	err_kernel
 
+
+	.code32
+
+
+load_failed_multiboot:
+
+	call	switch_real
+
+
+	.code16
+
+
+	jmp	err_multiboot
+
+	
+	.code32
+
+
+load_failed_elf:
+
+	call	switch_real
+
+
+	.code16
+
+
+	jmp	err_elf
 
 
 _end16:
@@ -986,12 +1013,12 @@ filename:		.ascii  "KERNEL  ELF"
 	jmp	_end16
 	.endm
 
-msg_load:		.asciz "Starting Andromeda\n\r"
+msg_load:		.asciz "Starting Andromeda...\n\r"
 msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
 msg_err_disk:		.asciz "Disk read error\n\r"
 msg_err_no_file:	.asciz "Kernel not found\n\r"
 msg_err_multiboot:	.asciz "Missing or invalid multiboot header\n\r"
-msg_err_elf:		.asciz "Failed to parse ELF binary\n\r"
+msg_err_elf:		.asciz "Failed to parse kernel ELF\n\r"
 msg_err_kernel:		.asciz "Failed to load kernel\n\r"
 
 err_a20:		m_err msg_err_a20

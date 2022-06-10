@@ -5,5 +5,5 @@ int32_t __NOINLINE __REGPARM load_kernel(uint16_t first_cluster)
 {
 	/* TODO: Find multiboot header, read and relocate ELF binary */
  
-    return -1;
+    return -3;
 }
