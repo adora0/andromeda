@@ -6,7 +6,8 @@ ARCH_BOOT_SRC := \
 
 # Kernel loader source files
 ARCH_LOADER_SRC := \
-	loader/loader.S
+	loader/loader.S \
+	loader/load_kernel.c
 
 # Generate object paths (must include architecture directory path)
 # Add source extensions to %.o filter

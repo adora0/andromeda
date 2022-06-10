@@ -97,6 +97,20 @@ Build if not already built and debug the image in a virtual machine:
 
 `$ make debug`
 
+## Tools
+
+Tools for writing the OS can be found in `tools`.
+
+### Prerequisites
+
+- `gcc`
+
+### Building
+
+`$ (cd tools && make)`
+
+Binaries will be output to `tools/build`.
+
 ## Source Formatting
 
 Assembly source files are optimized for a tab width of 8 using hard tabs.

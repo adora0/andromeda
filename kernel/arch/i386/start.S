@@ -1,16 +1,18 @@
 	/*
-	* Kernel start stub
-	*/
+	 * Kernel start stub
+	 */
 
 	
 	/*
-	* Multiboot v1 header constants
-	*/
+	 * Multiboot v1 header constants
+	 */
 
 	/* Align loaded modules on page boundaries */
+
 	.set MB_ALIGN,		1<<0
 
 	/* Memory map */
+
 	.set MB_MEMINFO,	1<<1
 
 	/* 'flag' field */
@@ -22,13 +24,14 @@
 	.set MB_MAGIC,	  	0x1BADB002
 	
 	/* Checksum */
+
 	.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)
 
 
 	/*
-	* Multiboot v1 header
-	* Marks the program as a kernel within the first 8KiB
-	*/
+	 * Multiboot v1 header
+	 * Must be within the first 8KiB to mark the program as a kernel
+	 */
 
 	.section .multiboot
 
@@ -40,9 +43,9 @@
 
 
 	/*
-	* Allocate 16KiB stack for initial thread
-	* (16-bit aligned in the System V ABI)
-	*/
+	 * Allocate 16KiB stack for initial thread
+	 * (16-bit aligned in the System V ABI)
+	 */
 
 	.section .bss
 
@@ -55,10 +58,6 @@ stack_bottom:
 stack_top:
 
 
-	/*
-	* Entry point
-	*/
-
 	.section .text
 
 	.global _start
@@ -66,7 +65,12 @@ stack_top:
 
 	.extern kmain
 
+	/*
+	 * Entry point
+	 */
+
 _start:
+
 	/* Initialize stack */
 	
 	lea	stack_top, %esp
@@ -81,6 +85,7 @@ _start:
 
 
 _end:
+
 	/* Disable interrupts and loop when finished */
 
 	cli
@@ -89,4 +94,5 @@ _end:
 
 
 	/* Set label size for debugging */
+
 	.size _start, . - _start

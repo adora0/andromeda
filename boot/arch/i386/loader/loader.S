@@ -6,8 +6,22 @@
 	.code16
 
 	.section .text
+
 	.global _start
 
+	.global	read_sectors
+	.global switch_protected
+	.global switch_real
+
+	.extern load_kernel
+
+
+	/*
+	 * Stack pointer loaded by boot sector
+	 */
+
+	.set STACK_TOP,			0x1500
+	
 
 	/*
 	 * Address of loaded boot sector and disk parameter offsets
@@ -25,6 +39,13 @@
 	 */
 
 	.set DATA_ADDR,			0xAE00
+
+
+	/*
+	 * Address to load temporary kernel data
+	 */
+
+	.set LOAD_ADDR,			0xBE00
 
 
 _start:
@@ -68,7 +89,7 @@ enable_a20:
 	/* Enable the A20 line to address memory above 1MiB +64KiB */
 
 	call	check_a20
-	jnc	a20_enabled		// skip if A20 already enabled
+	jnc	read_root		// skip if A20 already enabled
 
 
 enable_a20_bios:
@@ -108,7 +129,7 @@ enable_a20_bios:
 
 
 1:	call	check_a20		// success - check
-	jnc	a20_enabled
+	jnc	read_root
 
 
 enable_a20_8042:
@@ -174,7 +195,7 @@ check_a20_8042:
 	popf
 
 	call	check_a20
-	jnc	a20_enabled
+	jnc	read_root
 
 
 enable_a20_fast:
@@ -192,7 +213,7 @@ enable_a20_fast:
 	out	%al, $0x92	// write
 
 	call	check_a20	// success - check
-	jnc	a20_enabled
+	jnc	read_root
 
 
 a20_failed:
@@ -202,38 +223,6 @@ a20_failed:
 	popf
 
 	jmp	err_a20
-
-
-a20_enabled:
-
-	/* Enable unreal mode */
-
-	pushf
-	cli
-
-	push	%ds			// save real mode segment
-	
-
-	lgdt	gdt_info		// load GDT register
-
-	mov     %cr0, %eax
-        or      $1, %al
-        mov     %eax, %cr0		// set first bit in cr0
-
-        jmp     . + 2			// prevent crash on 386/486
-
-
-	mov	$8, %bx			// select descriptor 1 (1000b)
-	mov	%bx, %ds
-
-
-	and	$0xFE, %al
-	mov	%eax, %cr0		// set real mode bit in cr0
-
-
-	pop	%ds			// restore real mode segment
-
-	popf
 
 
 read_root:
@@ -353,7 +342,7 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 
 3:	jc 	err_no_file		// fail
 
-	movw 	%bx, disk_cluster	// store first cluster
+	movw 	%bx, first_file_cluster	// store first cluster
 
 
 read_fat:
@@ -398,14 +387,31 @@ read_fat:
 	jc	err_disk		// fail
 
 
-	/* TODO: Read and relocate ELF */
 
-	/* TODO: Enable protected mode */
-
-	/* TODO: Start kernel execution */
+	/* Call 32-bit protected mode C function to load kernel */
 
 
-_end:
+	call	switch_protected
+
+
+	.code32	
+
+
+	mov	first_file_cluster, %eax
+	call	load_kernel
+
+	cmp	$0, %eax
+	jl	load_failed
+
+
+start_kernel:
+
+	/* Start kernel execution */
+
+	jmp	*%eax
+
+
+_end32:
 
 	/* Halt execution */
 
@@ -413,6 +419,33 @@ _end:
 1:	hlt
 	jmp	1b
 
+
+
+load_failed:
+
+	/* Failed to load kernel */
+
+	call	switch_real
+
+
+	.code16
+
+
+	cmp	$-1, %ax
+	je	err_multiboot
+
+	cmp	$-2, %ax
+	je	err_elf
+
+	jmp	err_kernel
+
+
+
+_end16:
+
+	cli
+1:	hlt
+	jmp	1b
 
 
 /***************
@@ -620,8 +653,170 @@ read_sectors:
 	ret
 
 
-/**************/
+/*
+ * Switch to 32-bit protected mode
+ */
 
+switch_protected:
+
+	/* Disable maskable interrupts */
+
+	cli
+
+
+	/* Disable non-maskable interrupts */
+
+	in	$0x70, %ax		// CMOS RAM Index register
+	or	$0x80, %ax		// mask bits 0-6
+	out	%ax, $0x70
+
+	in	$0x71, %ax		// wait for CMOS
+
+
+	/* Load 32-bit GDT */
+
+	lgdt	gdt_32
+
+
+	/* Set Control Register 0 */
+
+	mov     %cr0, %eax
+        or      $1, %al			// set PE bit
+        mov     %eax, %cr0
+
+	
+	/* Perform far jump to set code segment (1st descriptor) */
+
+        ljmp	$0x08, $_protected_entry_32
+
+
+_protected_entry_32:
+	
+
+	.code32
+	
+
+	/* Load segment registers */
+
+	mov     $0x10, %eax		// select data segment (2nd descriptor)
+        mov     %eax, %ds
+        mov     %eax, %es
+        mov     %eax, %fs
+        mov     %eax, %gs
+        mov     %eax, %ss	
+
+
+	ret
+
+
+
+/*
+ * Switch to 16-bit real mode
+ * (Assumes paging is already disabled, the default state
+ *  upon reset of the CPU)
+ */
+
+switch_real:
+
+	/* Disable maskable interrupts */
+
+	cli
+
+
+	/* Disable non-maskable interrupts */
+
+	in	$0x70, %eax		// CMOS RAM Index register
+	or	$0x80, %eax		// mask bits 0-6
+	out	%eax, $0x70
+
+	in	$0x71, %eax		// wait for CMOS
+
+
+	/* Store return address */
+
+	push	%ebp
+	mov	%esp, %ebp
+	mov	4(%ebp), %ebp
+	movw	%bp, real_return
+	pop	%ebp
+
+	
+	/* Load 16-bit GDT */
+
+	lgdt	gdt_16
+
+
+	/* Perform far jump to set code segment (1st descriptor) */
+
+        ljmp	$0x08, $_protected_entry_16
+
+
+_protected_entry_16:
+
+
+	.code16
+
+
+	/* Load segment registers */
+
+	mov     $0x10, %ax		// select data segment (2nd descriptor)
+        mov     %ax, %ds
+        mov     %ax, %es
+        mov     %ax, %fs
+        mov     %ax, %gs
+        mov     %ax, %ss
+
+	
+	/* Load 16-bit IDT */
+
+	lidt	idt_16
+
+
+	/* Disable protected mode */
+
+	mov	%cr0, %eax
+	and	$0xFFFFFFFE, %eax	// clear PE bit
+	mov	%eax, %cr0
+
+
+	/* Perform far jump to reset code segment to 0 */
+
+        ljmp	$0, $_real_entry
+
+
+_real_entry:
+
+	/* Load registers */
+
+	xor	%ax, %ax		// reset segment registers to 0
+	mov     %ax, %ds
+        mov     %ax, %es
+        mov     %ax, %fs
+        mov     %ax, %gs
+        mov     %ax, %ss
+	mov	$STACK_TOP, %sp		// set stack pointer
+	
+
+	/* Enable non-maskable interrupts */
+
+	in	$0x70, %ax		// CMOS RAM Index register
+	and	$0x7F, %ax		// set bit 7
+	out	%ax, $0x70
+
+
+	/* Enable maskable interrupts */
+
+	sti
+
+	
+	/* Explicit return to callee */
+	
+	pushw	real_return
+
+	ret
+
+
+/**************/
 
 
 /*
@@ -656,39 +851,123 @@ bpb_end:
 disk_geom_start:
 
 drive_number:		.byte	0
-disk_cluster:		.word	0
+first_file_cluster:	.word	0
 disk_data_sector:	.word	0
 
 disk_geom_end:
 
 
 /*
-* Global Descriptor Table
-* Flat 4GiB with no address translation
-*/
+ * Flat 4GiB 32-bit GDT
+ */
 
-gdt_info:
+gdt_32:
 
-        .word   gdt_end - gdt_start - 1	// last byte in table
-	.long	gdt_start		// start of table
+        .word   gdt_32_end - gdt_32_start - 1	// last byte in table
+	.long	gdt_32_start			// start of table
 
-gdt_start:
-	/* Null descriptor */
+gdt_32_start:
 
-	.long	0
-	.long	0
+	/*
+	 * Null descriptor
+	 *	Base = 0
+	 *	Limit = 0x00000000
+	 *	Access Byte = 0x00
+	 *	Flags = 0x0
+	 */
+
+	.quad	0
 
 
-	/* Code descriptor */
+	/*
+	 * Ring 0 code segment
+	 *	Base = 0
+	 *	Limit = 0xFFFFF
+	 *	Access Byte = 0x9A
+	 *	Flags = 0xC
+	 */
 
-	.word	0xFFFF		// segment limit (bits 0-16)
-	.word	0		// base address (bits 0-16)
-	.byte	0		// base address (bits 16-23)
-	.byte	0b10010010	// type, privilege level, present flag
-	.byte	0b11001111	// segment limit (bits 16-19), attributes, granularity
-	.byte	0		// base address (bits 24-31)
+	.quad	0x00CF9A000000FFFF
 
-gdt_end:
+
+	/*
+	 * Ring 0 data segment
+	 *	Base = 0
+	 *	Limit = 0xFFFFF
+	 *	Access Byte = 0x92
+	 *	Flags = 0xC
+	 */
+
+	 .quad	0x00CF92000000FFFF
+
+
+gdt_32_end:
+
+
+/*
+ * Flat 4GiB 16-bit GDT
+ */
+
+gdt_16:
+
+        .word   gdt_16_end - gdt_16_start - 1	// last byte in table
+	.long	gdt_16_start			// start of table
+
+gdt_16_start:
+
+	/*
+	 * Null descriptor
+	 *	Base = 0
+	 *	Limit = 0x00000000
+	 *	Access Byte = 0x00
+	 *	Flags = 0x0
+	 */
+
+	.quad	0
+
+
+	/*
+	 * Ring 0 code segment
+	 *	Base = 0
+	 *	Limit = 0xFFFF
+	 *	Access Byte = 0x9A
+	 *	Flags = 0xC
+	 */
+
+	.quad	0x00809A000000FFFF
+
+
+	/*
+	 * Ring 0 data segment
+	 *	Base = 0
+	 *	Limit = 0xFFFF
+	 *	Access Byte = 0x92
+	 *	Flags = 0xC
+	 */
+
+	 .quad	0x008092000000FFFF
+
+
+gdt_16_end:
+
+
+/*
+ * 16-bit IDT
+ */
+
+idt_16:
+
+	.word	0x3FF	// 256 entries, 4b each = 1K
+	.long	0	// Real Mode IVT @ 0x0000
+
+
+/*
+ * Callee return address for real mode switch
+ */
+
+real_return:
+	
+	.word	0
 
 
 /*
@@ -704,13 +983,20 @@ filename:		.ascii  "KERNEL  ELF"
 	.macro m_err str
 	leaw	\str, %si
 	call	puts
-	jmp	_end
+	jmp	_end16
 	.endm
 
 msg_load:		.asciz "Starting Andromeda\n\r"
 msg_err_a20:		.asciz "Failed to enable A20 line\n\r"
 msg_err_disk:		.asciz "Disk read error\n\r"
 msg_err_no_file:	.asciz "Kernel not found\n\r"
+msg_err_multiboot:	.asciz "Missing or invalid multiboot header\n\r"
+msg_err_elf:		.asciz "Failed to parse ELF binary\n\r"
+msg_err_kernel:		.asciz "Failed to load kernel\n\r"
+
 err_a20:		m_err msg_err_a20
 err_disk:		m_err msg_err_disk
 err_no_file:		m_err msg_err_no_file
+err_multiboot:		m_err msg_err_multiboot
+err_elf:		m_err msg_err_elf
+err_kernel:		m_err msg_err_kernel

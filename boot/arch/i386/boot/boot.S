@@ -98,7 +98,7 @@ ebpb_system_id:		.space	8, 0	// file system type representation (unused)
  */
 
 drive_number:		.byte	0
-disk_cluster:		.word	0
+first_file_cluster:	.word	0
 disk_data_sector:	.word	0
 
 
@@ -242,7 +242,7 @@ rep	cmpsb			// compare each byte pair in DS:SI and ES:DI
 
 3:	jc 	err_no_file		// fail
 
-	movw 	%bx, disk_cluster	// store first cluster
+	movw 	%bx, first_file_cluster	// store first cluster
 
 
 read_fat:
@@ -297,16 +297,16 @@ read_file:
 	mov	$DATA_ADDR, %si		// set FAT offset
 	mov 	%ax, %es		// clear destination segment
 	mov 	$LOAD_ADDR, %di		// set destination offset
-	movw 	disk_cluster, %ax	// first cluster
+	movw 	first_file_cluster, %ax	// first cluster
 	
 	pusha
 
 1:	push	%ax			// save cluster index
 
 	/*
-	* Calculate LBA of cluster in ax
-	* LBA = (cluster - 2) * sectors per cluster + first data sector
-	*/
+	 * Calculate LBA of cluster in ax
+	 * LBA = (cluster - 2) * sectors per cluster + first data sector
+	 */
 
 	sub	$2, %ax				// cluster - 2
 	xor	%ch, %ch
@@ -315,9 +315,9 @@ read_file:
 	addw	disk_data_sector, %ax		// + first data sector
 
 	/*
-	* Read cluster
-	* AX = cluster LBA, CX = sectors per cluster, ES:DI -> destination
-	*/
+	 * Read cluster
+	 * AX = cluster LBA, CX = sectors per cluster, ES:DI -> destination
+	 */
 
 	call	read_sectors
 	jc	4f

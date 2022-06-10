@@ -7,7 +7,7 @@
 
 
 # Synchronus modules to be compiled
-MODULES		:= libc kernel boot
+MODULES				:= libc kernel boot
 
 
 # Automatic and fallback variables

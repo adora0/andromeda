@@ -1,6 +1,7 @@
-/.env*
-/build
-*.o
 *.a
 *.d
+*.o
 *.socket
+/.env*
+/build
+/tools/build
