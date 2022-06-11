@@ -9,11 +9,12 @@
 
 	.global _start
 
-	.global	read_sectors
-	.global switch_protected
-	.global switch_real
+	.global	read_sectors_32	
 
 	.extern load_kernel
+
+
+#include "loaddefs.h"
 
 
 	/*
@@ -396,8 +397,11 @@ read_fat:
 
 	.code32	
 
-
-	mov	first_file_cluster, %eax
+	
+	mov	$LOAD_ADDR, %eax
+	mov	$DATA_ADDR, %edx
+	xor	%ecx, %ecx
+	movw	first_file_cluster, %cx
 	call	load_kernel
 
 	cmp	$0, %eax
@@ -425,47 +429,23 @@ load_failed:
 
 	/* Failed to load kernel */
 
-	cmp	$-1, %ax
-	je	load_failed_multiboot
-
-	cmp	$-2, %ax
-	je	load_failed_elf
+	movw	%ax, reg_save_ax
 
 	call	switch_real
 
 
 	.code16
 
+
+	movw	reg_save_ax, %ax
+
+	cmp	$ERRNO_MULTIBOOT, %ax
+	je	err_multiboot
+
+	cmp	$ERRNO_ELF, %ax
+	je	err_elf
 
 	jmp	err_kernel
-
-
-	.code32
-
-
-load_failed_multiboot:
-
-	call	switch_real
-
-
-	.code16
-
-
-	jmp	err_multiboot
-
-	
-	.code32
-
-
-load_failed_elf:
-
-	call	switch_real
-
-
-	.code16
-
-
-	jmp	err_elf
 
 
 _end16:
@@ -678,6 +658,96 @@ read_sectors:
         pop    %bx
         pop    %ax
 	ret
+
+
+/*
+ * Read sectors from disk
+ *	in:	AX = LBA
+ *		DX = number of sectors
+ *		ECX -> buffer
+ *
+ *	out:	data at buffer
+ *		EAX = -1 on error
+ *		EAX -> end of read buffer
+ */
+	
+	.code32
+
+read_sectors_32:
+
+	/* Save arguments */
+
+	movw	%ax, reg_save_ax	// LBA
+	movw	%dx, reg_save_cx	// number of sectors
+
+        movw    %cx, reg_save_di	// offset
+        xor     %cx, %cx
+        shr     $20, %ecx               // upper 15 bits
+        movw    %cx, reg_save_es	// segment
+
+
+	call	switch_real
+
+
+	.code16
+
+
+	/* Restore arguments */
+
+	movw	reg_save_ax, %ax
+	movw	reg_save_cx, %cx
+	movw	reg_save_es, %es
+	movw	reg_save_di, %di
+
+
+	/* Read */
+
+	call	read_sectors
+
+	jc	1f			// fail
+
+
+	/* Save buffer address */
+
+	movw	$0, reg_save_eax
+	movw	%es, reg_save_es
+	movw	%di, reg_save_di
+
+	jmp	2f
+
+
+1:	/* Fail */
+
+	movl	$-1, reg_save_eax
+
+
+2:	/* Return */
+
+	call	switch_protected
+
+
+	.code32
+
+
+	movl	reg_save_eax, %eax
+
+	cmp	$-1, %eax
+	je	3f			// return immediately on fail
+
+
+	/* Convert buffer to physical address */
+
+	xor	%eax, %eax
+	movw	reg_save_es, %ax
+	movl	$0x10, %ebx
+	mull	%ebx			// convert segment
+	addw	reg_save_di, %ax	// add offset
+
+
+3:	ret
+
+
+	.code16
 
 
 /*
@@ -996,6 +1066,16 @@ real_return:
 	
 	.word	0
 
+
+/*
+ * Register storage space for mode switching
+ */
+
+reg_save_ax:		.word 0
+reg_save_cx:		.word 0
+reg_save_di:		.word 0
+reg_save_es:		.word 0
+reg_save_eax:		.long 0
 
 /*
  * Kernel filename
