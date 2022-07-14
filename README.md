@@ -121,4 +121,4 @@ C source files are optimized for a tab width of 4 using spaces.
 
 Released under the GNU GPLv3: see [`LICENSE`](LICENSE) for details.
 
-Copyright (c) Kriss Wiggins 2022
+Copyright (c) Natalie Wiggins 2022
